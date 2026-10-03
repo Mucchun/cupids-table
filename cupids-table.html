@@ -86,37 +86,24 @@ function startVideo(){
   else{VID.addEventListener('canplaythrough',()=>{VID.currentTime=0;tryPlay();},{once:true});}
 }
 
-// ── EROS PORTRAIT SPRITES (3 stills → palette-baked offscreen canvases) ──
-// All canvases: 60×38 px (source is 1280×720, ≈16:9 → displayed at 220×138 = ~3.7× up)
-const EROS_A=document.createElement('canvas');EROS_A.width=60;EROS_A.height=38;
-const EROS_W=document.createElement('canvas');EROS_W.width=60;EROS_W.height=38;
-const EROS_I=document.createElement('canvas');EROS_I.width=60;EROS_I.height=38;
-const EROS_AC=EROS_A.getContext('2d',{willReadFrequently:true});
-const EROS_WC=EROS_W.getContext('2d',{willReadFrequently:true});
-const EROS_IC=EROS_I.getContext('2d',{willReadFrequently:true});
-let erosA=false,erosW=false,erosId=false;
-// createImageBitmap guarantees the image is decoded before we drawImage to canvas
-function bakeImg(el,oc,occ,setFlag){
-  createImageBitmap(el).then(bmp=>{
-    occ.drawImage(bmp,0,0,60,38);
-    const id=occ.getImageData(0,0,60,38),d=id.data;
-    for(let i=0;i<d.length;i+=4){const[r,g,b]=nearP(d[i],d[i+1],d[i+2]);d[i]=r;d[i+1]=g;d[i+2]=b;}
-    occ.putImageData(id,0,0);setFlag();
-  }).catch(()=>{});
-}
-function tryBake(el,oc,occ,setFlag){
-  if(el.complete&&el.naturalWidth>0){bakeImg(el,oc,occ,setFlag);}
-  else{el.addEventListener('load',()=>bakeImg(el,oc,occ,setFlag),{once:true});}
-}
+// ── EROS PORTRAIT SPRITES ─────────────────────────────────────────
+// Pixel art via two-step scale: img → tiny canvas (55×35) → main canvas 4× up.
+// No getImageData/putImageData = no cross-origin/security issues on file://
 const EA_EL=document.getElementById('ea');
 const EW_EL=document.getElementById('ew');
 const EI_EL=document.getElementById('ei');
-tryBake(EA_EL,EROS_A,EROS_AC,()=>{erosA=true;});
-tryBake(EW_EL,EROS_W,EROS_WC,()=>{erosW=true;});
-tryBake(EI_EL,EROS_I,EROS_IC,()=>{erosId=true;});
+// Tiny staging canvas used only for the downscale step
+const PSTAGE=document.createElement('canvas');PSTAGE.width=55;PSTAGE.height=35;
+const PSTC=PSTAGE.getContext('2d');
 
-function blitEros(oc,dx,dy,dw,dh){
-  ctx.imageSmoothingEnabled=false;ctx.drawImage(oc,dx,dy,dw,dh);ctx.imageSmoothingEnabled=false;
+function blitEros(imgEl,dx,dy,dw,dh){
+  // Draw hi-res image → 55×35 (smooth downscale), then blow up with pixelation
+  PSTC.imageSmoothingEnabled=true;
+  PSTC.clearRect(0,0,55,35);
+  PSTC.drawImage(imgEl,0,0,55,35);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(PSTAGE,dx,dy,dw,dh);
+  ctx.imageSmoothingEnabled=false;
 }
 
 // ── AUDIO ─────────────────────────────────────────────────────────
@@ -201,7 +188,7 @@ function drawEros(st,sf){
       ctx.strokeStyle=`rgba(255,${r*35},0,${a})`;ctx.lineWidth=2;
       ctx.strokeRect(epx-exp+shk,oy-exp,epw+exp*2,eph+exp*2);
     }
-    if(erosA){blitEros(EROS_A,epx+shk,oy,epw,eph);}
+    if(EA_EL.naturalWidth){blitEros(EA_EL,epx+shk,oy,epw,eph);}
     else{fillR(epx,oy,epw,eph,'#3a0010');pbord(epx,oy,epw,eph,'#ff3300');}
     // Flash overlay
     if(G.frame%8<4){ctx.fillStyle='rgba(255,0,0,.2)';ctx.fillRect(epx+shk,oy,epw,eph);}
@@ -219,7 +206,7 @@ function drawEros(st,sf){
     ctx.strokeRect(epx-3,oy-3+bounce,epw+6,eph+6);
     ctx.strokeStyle=`rgba(255,215,0,${ga*.5})`;ctx.lineWidth=1;
     ctx.strokeRect(epx-7,oy-7+bounce,epw+14,eph+14);
-    if(erosW){blitEros(EROS_W,epx-(grow/2|0),oy+bounce-(grow/2|0),epw+grow,eph+grow);}
+    if(EW_EL.naturalWidth){blitEros(EW_EL,epx-(grow/2|0),oy+bounce-(grow/2|0),epw+grow,eph+grow);}
     else{fillR(epx,oy+bounce,epw,eph,'#1a0800');pbord(epx,oy+bounce,epw,eph,'#ffd700');}
     // Gold shimmer sweep
     const sh=(G.frame%30)/30;
@@ -231,11 +218,11 @@ function drawEros(st,sf){
 
   } else {
     // ── IDLE / DRAW / THINK: staring face, slow bob ──
-    if(erosId){
+    if(EI_EL.naturalWidth){
       // Subtle breathing scale
       const breathe=(Math.sin(G.frame*.04)*.5+.5);
       const grow=(breathe*3)|0;
-      blitEros(EROS_I,epx-(grow/2|0),oy-(grow/2|0),epw+grow,eph+grow);
+      blitEros(EI_EL,epx-(grow/2|0),oy-(grow/2|0),epw+grow,eph+grow);
       // Very faint vignette
       ctx.fillStyle='rgba(0,0,0,.15)';
       for(let sy=oy;sy<oy+eph;sy+=2)ctx.fillRect(epx,sy,epw,1);
@@ -773,9 +760,9 @@ function loop(){
     else             drawOutgoingArrow(ARW.t);
   }
 
-  getBtns().forEach(b=>pbtn(b.label,b.x,b.y,b.w,b.h,G.hBtn===b.id,b.col));
   drawStuckOnPlayer();
   drawHUD();
+  getBtns().forEach(b=>pbtn(b.label,b.x,b.y,b.w,b.h,G.hBtn===b.id,b.col));
   drawFlt();drawPts();
   ctx.restore();
 }

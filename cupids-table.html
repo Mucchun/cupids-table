@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Cupid's Table</title>
+<title>Cupid's 21</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#000;display:flex;justify-content:center;align-items:center;width:100vw;height:100vh;overflow:hidden}
@@ -12,562 +12,617 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer}
 <body>
 <canvas id="c"></canvas>
 <script>
-// CUPID'S TABLE — BioCraftEd Vibecoding Jam 2026
-// Pixel art tile card game: Balatro scoring × Okey draw × Mystical table
-
+// CUPID'S 21 — BioCraftEd Vibecoding Jam 2026
 const C=document.getElementById('c'),ctx=C.getContext('2d');
-const LW=480,LH=270;         // logical (pixel-art) resolution
+const LW=480,LH=270;
 C.width=LW;C.height=LH;
 ctx.imageSmoothingEnabled=false;
-
-function resize(){
-  const s=Math.min(innerWidth/LW,innerHeight/LH);
-  C.style.width=LW*s+'px';C.style.height=LH*s+'px';C._s=s;
-}
+function resize(){const s=Math.min(innerWidth/LW,innerHeight/LH);C.style.width=LW*s+'px';C.style.height=LH*s+'px';C._s=s;}
 addEventListener('resize',resize);resize();
 
-// ── 4×6 BITMAP FONT ───────────────────────────────────────────────
-// Each char: 6 rows, each row is 4 bits (MSB = leftmost pixel)
-const BF={
-  '0':[6,9,9,9,9,6],'1':[2,6,2,2,2,7],'2':[6,9,1,2,4,15],
-  '3':[6,9,3,1,9,6],'4':[1,3,5,9,15,1],'5':[15,8,14,1,9,6],
-  '6':[6,8,14,9,9,6],'7':[15,1,2,4,4,4],'8':[6,9,6,9,9,6],
-  '9':[6,9,9,7,1,6],'A':[6,9,15,9,9,9],'B':[14,9,14,9,9,14],
-  'C':[6,9,8,8,9,6],'D':[14,9,9,9,9,14],'E':[15,8,14,8,8,15],
-  'F':[15,8,14,8,8,8],'G':[6,9,8,11,9,6],'H':[9,9,15,9,9,9],
-  'I':[7,2,2,2,2,7],'J':[1,1,1,1,9,6],'K':[9,10,12,10,9,9],
-  'L':[8,8,8,8,8,15],'M':[9,15,15,9,9,9],'N':[9,13,11,9,9,9],
-  'O':[6,9,9,9,9,6],'P':[14,9,9,14,8,8],'Q':[6,9,9,11,9,7],
-  'R':[14,9,14,10,9,9],'S':[7,8,6,1,1,14],'T':[15,2,2,2,2,2],
-  'U':[9,9,9,9,9,6],'V':[9,9,9,9,6,6],'W':[9,9,9,15,15,9],
-  'X':[9,6,6,6,6,9],'Y':[9,9,6,2,2,2],'Z':[15,1,2,4,8,15],
-  ' ':[0,0,0,0,0,0],'!':[2,2,2,2,0,2],'.':[0,0,0,0,0,2],
-  ':':[0,2,0,0,2,0],'/':[1,1,2,2,4,4],'+':[0,2,7,2,0,0],
-  '-':[0,0,7,0,0,0],'>':[4,2,1,1,2,4],'<':[1,2,4,4,2,1],
-  '=':[0,15,0,15,0,0],'?':[6,9,2,2,0,2],"'":[2,2,0,0,0,0],
-  'x':[0,0,9,6,6,9],'*':[0,5,2,5,0,0],'#':[5,15,5,5,15,5],
-};
-function pc(ch,x,y,col,sc=1){
-  const rows=BF[ch.toUpperCase()]||BF[' '];
-  ctx.fillStyle=col;
-  rows.forEach((r,dy)=>{for(let dx=0;dx<4;dx++) if(r&(1<<(3-dx))) ctx.fillRect(x+dx*sc,y+dy*sc,sc,sc);});
+// ── AUDIO ─────────────────────────────────────────────────────────
+let AC=null;
+function initAC(){if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();}
+function tone(f,type,dur,vol=0.25,sweep=null,delay=0){
+  if(!AC)return;
+  const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime+delay;
+  o.connect(g);g.connect(AC.destination);
+  o.type=type;o.frequency.setValueAtTime(f,t);
+  if(sweep)o.frequency.exponentialRampToValueAtTime(sweep,t+dur);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  o.start(t);o.stop(t+dur);
 }
-function pt(str,x,y,col,sc=1){[...str].forEach((ch,i)=>pc(ch,x+i*(4*sc+sc),y,col,sc));}
-function ptw(str,sc=1){return str.length*(4*sc+sc);}
-function ptc(str,cx,y,col,sc=1){pt(str,Math.round(cx-ptw(str,sc)/2),y,col,sc);}
-
-// ── SUIT PIXEL MAPS (4×5) ─────────────────────────────────────────
-// 4-bit row, 5 rows. Heart, Arrow, Rose, Dove
-const SP=[
-  [5,15,15,6,2],   // ♥ Heart
-  [2,7,15,7,2],    // ↑ Arrow
-  [5,15,6,15,5],   // ✿ Rose
-  [6,14,7,14,4],   // ❧ Dove
-];
-const SC=['#ff4477','#ffaa22','#ff77bb','#55ddcc'];
-const SN=['HEART','ARROW','ROSE','DOVE'];
-
-function dsuit(sx,sy,s,col){
-  ctx.fillStyle=col;
-  SP[s].forEach((r,dy)=>{for(let dx=0;dx<4;dx++) if(r&(1<<(3-dx))) ctx.fillRect(sx+dx,sy+dy,1,1);});
+function noise(dur,vol=0.18,delay=0){
+  if(!AC)return;
+  const buf=AC.createBuffer(1,AC.sampleRate*dur,AC.sampleRate),d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+  const s=AC.createBufferSource(),g=AC.createGain(),fl=AC.createBiquadFilter(),t=AC.currentTime+delay;
+  s.buffer=buf;fl.type='bandpass';fl.frequency.value=1800;s.connect(fl);fl.connect(g);g.connect(AC.destination);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);s.start(t);s.stop(t+dur);
+}
+function snd(id){
+  initAC();
+  if(id==='card'){tone(700,'triangle',.07,.18,250);}
+  if(id==='ugh'){noise(.06,.2);tone(220,'sawtooth',.35,.22,55);}
+  if(id==='ah'){tone(380,'sine',.12,.2,620);tone(620,'sine',.18,.15,820,.12);tone(820,'sine',.22,.12,1000,.28);}
+  if(id==='whoosh'){noise(.28,.22);tone(500,'sawtooth',.3,.08,80);}
+  if(id==='wild'){[380,480,620,800].forEach((f,i)=>tone(f,'sine',.14,.18,null,i*.08));}
+  if(id==='bust'){tone(280,'sawtooth',.45,.22,45);}
+  if(id==='win'){[500,650,800,1000].forEach((f,i)=>tone(f,'sine',.18,.18,null,i*.07));}
+  if(id==='tick'){tone(900,'square',.04,.08);}
 }
 
-// ── TILE DRAW (TW=14, TH=20) ─────────────────────────────────────
-const TW=14,TH=20;
+// ── BITMAP FONT 4×6 ───────────────────────────────────────────────
+const BF={'0':[6,9,9,9,9,6],'1':[2,6,2,2,2,7],'2':[6,9,1,2,4,15],'3':[6,9,3,1,9,6],'4':[1,3,5,9,15,1],'5':[15,8,14,1,9,6],'6':[6,8,14,9,9,6],'7':[15,1,2,4,4,4],'8':[6,9,6,9,9,6],'9':[6,9,9,7,1,6],'A':[6,9,15,9,9,9],'B':[14,9,14,9,9,14],'C':[6,9,8,8,9,6],'D':[14,9,9,9,9,14],'E':[15,8,14,8,8,15],'F':[15,8,14,8,8,8],'G':[6,9,8,11,9,6],'H':[9,9,15,9,9,9],'I':[7,2,2,2,2,7],'J':[1,1,1,1,9,6],'K':[9,10,12,10,9,9],'L':[8,8,8,8,8,15],'M':[9,15,15,9,9,9],'N':[9,13,11,9,9,9],'O':[6,9,9,9,9,6],'P':[14,9,9,14,8,8],'Q':[6,9,9,11,9,7],'R':[14,9,14,10,9,9],'S':[7,8,6,1,1,14],'T':[15,2,2,2,2,2],'U':[9,9,9,9,9,6],'V':[9,9,9,9,6,6],'W':[9,9,9,15,15,9],'X':[9,6,6,6,6,9],'Y':[9,9,6,2,2,2],'Z':[15,1,2,4,8,15],' ':[0,0,0,0,0,0],'!':[2,2,2,2,0,2],'.':[0,0,0,0,0,2],':':[0,2,0,0,2,0],'/':[1,1,2,2,4,4],'+':[0,2,7,2,0,0],'-':[0,0,7,0,0,0],'>':[4,2,1,1,2,4],'<':[1,2,4,4,2,1],'=':[0,15,0,15,0,0],'?':[6,9,2,2,0,2],"'":[2,2,0,0,0,0],'*':[0,5,2,5,0,0],'#':[5,15,5,5,15,5],'%':[8,9,2,4,9,1]};
+function pc(ch,x,y,col,sc=1){const r=BF[ch.toUpperCase()]||BF[' '];ctx.fillStyle=col;r.forEach((v,dy)=>{for(let dx=0;dx<4;dx++)if(v&(1<<(3-dx)))ctx.fillRect(x+dx*sc,y+dy*sc,sc,sc);});}
+function pt(s,x,y,col,sc=1){[...s].forEach((c,i)=>pc(c,x+i*5*sc,y,col,sc));}
+function ptw(s,sc=1){return s.length*5*sc;}
+function ptc(s,cx,y,col,sc=1){pt(s,Math.round(cx-ptw(s,sc)/2),y,col,sc);}
 
-function tile(x,y,t,face=true,sel=false,hov=false){
-  const yo=sel?-4:hov?-2:0; y+=yo;
+// ── DRAW UTILS ────────────────────────────────────────────────────
+function pbord(x,y,w,h,col){ctx.fillStyle=col;ctx.fillRect(x,y,w,1);ctx.fillRect(x,y+h-1,w,1);ctx.fillRect(x,y,1,h);ctx.fillRect(x+w-1,y,1,h);}
+function dith(x,y,w,h,c1,c2){ctx.fillStyle=c1;ctx.fillRect(x,y,w,h);ctx.fillStyle=c2;for(let dy=0;dy<h;dy++)for(let dx=dy%2;dx<w;dx+=2)ctx.fillRect(x+dx,y+dy,1,1);}
+function pbtn(lbl,x,y,w,h,hov,col='#3d0077'){
+  ctx.fillStyle='#060010';ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=hov?hc(col):col;ctx.fillRect(x+1,y+1,w-2,h-2);
+  pbord(x,y,w,h,hov?'#ffdd00':'#7700cc');
+  ptc(lbl,x+w/2,y+(h-6)/2|0,hov?'#ffee88':'#ddbbff',1);
+}
+function hc(c){const m={'#3d0077':'#5500bb','#550022':'#880033','#005533':'#008844','#333':'#555'};return m[c]||'#6600cc';}
+
+// ── BIG CUPID / EROS SPRITE  (28w × 46h, centered at cx,cy) ──────
+function drawChar(cx,cy,st,sf,isEros){
+  // st=state: idle|draw|hit|win|think
+  // sf=state frame
+  const bob=(st==='idle'||st==='think')?Math.round(Math.sin(G.frame*.07)*1.5):0;
+  const shake=(st==='hit')?Math.round(Math.sin(sf*.9)*4):0;
+  const jump=(st==='win')?-Math.min(10,sf*.4):0;
+  const armFwd=(st==='draw')?Math.min(9,sf*.5|0):0;
+
+  const x=cx-14+shake, y=cy-23+bob+jump;
+
+  // WIN glow
+  if(st==='win'){ctx.fillStyle='rgba(255,220,80,.25)';ctx.fillRect(x-6,y-4,40,54);}
+
+  // WINGS
+  const wc=isEros?'#bbbbdd':'#dde8ff', ws=isEros?'#9999bb':'#aaaacc';
+  ctx.fillStyle=wc;
+  ctx.fillRect(x-3,y+11,7,2);ctx.fillRect(x-4,y+13,9,3);ctx.fillRect(x-5,y+16,10,3);ctx.fillRect(x-4,y+19,8,2);ctx.fillRect(x-2,y+21,5,1);
+  ctx.fillRect(x+21,y+11,7,2);ctx.fillRect(x+23,y+13,9,3);ctx.fillRect(x+23,y+16,10,3);ctx.fillRect(x+24,y+19,8,2);ctx.fillRect(x+25,y+21,5,1);
+  ctx.fillStyle=ws;
+  ctx.fillRect(x-2,y+13,4,3);ctx.fillRect(x+26,y+13,4,3);
+
+  // HALO
+  ctx.fillStyle='#ffd700';
+  ctx.fillRect(x+8,y,12,1);ctx.fillRect(x+6,y+1,16,1);ctx.fillRect(x+6,y+2,1,2);ctx.fillRect(x+21,y+2,1,2);
+  ctx.fillStyle='#ffff99';ctx.fillRect(x+10,y+1,8,1);
+
+  // HAIR
+  const hc2=isEros?'#1a0800':'#ffcc44', hcd=isEros?'#0a0400':'#bb9900';
+  ctx.fillStyle=hc2;
+  ctx.fillRect(x+6,y+3,16,4);ctx.fillRect(x+5,y+4,2,6);ctx.fillRect(x+21,y+4,2,6);
+  ctx.fillStyle=hcd;ctx.fillRect(x+8,y+3,4,2);ctx.fillRect(x+16,y+3,4,2);
+  if(isEros){ctx.fillStyle='#2a0e00';ctx.fillRect(x+6,y+3,16,2);}
+
+  // HEAD
+  const sk=isEros?'#d49060':'#ffd8a8', skd=isEros?'#b07040':'#e6b87a';
+  ctx.fillStyle=sk;ctx.fillRect(x+6,y+5,16,13);
+  ctx.fillStyle=skd;ctx.fillRect(x+6,y+16,16,2);
+
+  // EYES
+  const ec=isEros?'#dd1133':'#1a1a44';
+  ctx.fillStyle=ec;ctx.fillRect(x+8,y+8,3,4);ctx.fillRect(x+17,y+8,3,4);
+  ctx.fillStyle='#ffffff';ctx.fillRect(x+8,y+8,1,1);ctx.fillRect(x+17,y+8,1,1);
+  if(st==='hit'){ctx.fillStyle='#ff0000';ctx.fillRect(x+8,y+8,3,4);ctx.fillRect(x+17,y+8,3,4);}
+  // Brows
+  ctx.fillStyle=isEros?'#880011':'#443300';
+  if(isEros){ctx.fillRect(x+8,y+6,4,1);ctx.fillRect(x+16,y+6,4,1);} // angry brows
+  else{ctx.fillRect(x+8,y+7,3,1);ctx.fillRect(x+17,y+7,3,1);}
+
+  // BLUSH (player only)
+  if(!isEros){ctx.fillStyle='#ffaaaa';ctx.fillRect(x+7,y+12,2,1);ctx.fillRect(x+19,y+12,2,1);}
+
+  // MOUTH
+  ctx.fillStyle=isEros?'#aa2233':'#cc6677';
+  if(st==='win')     {ctx.fillRect(x+10,y+14,8,2);ctx.fillRect(x+9,y+13,10,1);}
+  else if(st==='hit'){ctx.fillRect(x+11,y+14,6,2);ctx.fillRect(x+10,y+13,1,2);ctx.fillRect(x+17,y+13,1,2);}
+  else if(isEros)    {ctx.fillRect(x+10,y+14,8,1);ctx.fillRect(x+11,y+15,6,1);}// smirk
+  else               {ctx.fillRect(x+11,y+14,6,1);}
+
+  // NECK + BODY
+  ctx.fillStyle=sk;ctx.fillRect(x+11,y+18,6,2);
+  const tc=isEros?'#cc2233':'#ff88cc', tcd=isEros?'#991122':'#dd44aa';
+  ctx.fillStyle=tc;ctx.fillRect(x+7,y+19,14,14);
+  ctx.fillStyle=tcd;ctx.fillRect(x+7,y+25,14,2); // belt
+
+  // ARMS — player's left arm holds bow, right arm is free. Eros mirrored.
+  const bowArmX=isEros?armFwd:-armFwd; // eros extends arm toward center (right), player extends left
+  ctx.fillStyle=sk;
+  // Left arm
+  ctx.fillRect(x+4+bowArmX,y+20,4,3);ctx.fillRect(x+3+bowArmX,y+19,3,7);
+  // Right arm
+  ctx.fillRect(x+20-bowArmX,y+20,4,3);ctx.fillRect(x+22-bowArmX,y+19,3,7);
+
+  // BOW (left hand of player, right hand of eros)
+  const bx=isEros?(x+23-bowArmX):(x+2+bowArmX);
+  ctx.fillStyle='#885522';ctx.fillRect(bx,y+14,2,16);
+  ctx.fillStyle='#ccaa55';ctx.fillRect(bx+1,y+15,1,14); // string
+  // Nocked arrow (only if not shooting)
+  if(st!=='shoot'){
+    ctx.fillStyle='#ccaa55';ctx.fillRect(bx+(isEros?-7:2),y+21,10,1);
+    ctx.fillStyle='#aaaaaa';ctx.fillRect(bx+(isEros?-8:11),y+20,3,3);
+    ctx.fillStyle='#ff3355';ctx.fillRect(bx+(isEros?1:2),y+20,2,3);// fletching
+  }
+
+  // LEGS + FEET
+  ctx.fillStyle=isEros?'#222':'#221133';
+  ctx.fillRect(x+8,y+33,5,5);ctx.fillRect(x+15,y+33,5,5);
+  ctx.fillStyle=sk;ctx.fillRect(x+8,y+33,5,3);ctx.fillRect(x+15,y+33,5,3);
+  ctx.fillStyle='#885522';
+  ctx.fillRect(x+7,y+37,6,4);ctx.fillRect(x+15,y+37,6,4);
+  ctx.fillStyle='#664411';ctx.fillRect(x+7,y+40,6,1);ctx.fillRect(x+15,y+40,6,1);
+
+  // HIT FLASH
+  if(st==='hit'&&sf%4<2){ctx.fillStyle='rgba(255,40,40,.4)';ctx.fillRect(x+5,y+3,18,40);}
+
+  // THINKING DOTS (Eros)
+  if(isEros&&st==='think'){const d='.'.repeat(1+(G.frame/18|0)%3+1);ptc(d,cx,cy+26,'#ff88cc',1);}
+}
+
+// ── CARDS ─────────────────────────────────────────────────────────
+// v: 1=A 2-10=face 11=J 12=Q 13=K  wilds: 14=+5CURSE 15=SWAP 16=SHIELD 17=STEAL 18=PEEK
+const WNAME={14:'+5',15:'SWAP',16:'SHLD',17:'STEAL',18:'PEEK'};
+const WCOL={14:'#ff4444',15:'#44aaff',16:'#44ff88',17:'#ffaa44',18:'#ff44ff'};
+const SUIT_COL=['#ff4477','#334499','#ff4477','#334499'];
+const CW=22,CH=32;
+
+function cval(c){if(c.wild)return 0;if(c.v>=11)return 10;return c.v;}
+function clabel(c){if(c.wild)return WNAME[c.v]||'?';if(c.v===1)return'A';if(c.v===11)return'J';if(c.v===12)return'Q';if(c.v===13)return'K';return''+c.v;}
+
+function drawCard(x,y,c,face=true,hov=false,selFlash=false){
   if(!face){
-    ctx.fillStyle='#1a0035'; ctx.fillRect(x,y,TW,TH);
-    ctx.fillStyle='#2d0055'; ctx.fillRect(x+1,y+1,TW-2,TH-2);
-    ctx.fillStyle='#5500aa';
-    for(let dy=2;dy<TH-2;dy+=3) for(let dx=2;dx<TW-2;dx+=3) ctx.fillRect(x+dx,y+dy,1,1);
-    pborder(x,y,TW,TH,'#440088');
+    dith(x,y,CW,CH,'#1a0035','#2d0055');pbord(x,y,CW,CH,'#5500aa');
+    ctx.fillStyle='#3a0060';
+    for(let dy=3;dy<CH-3;dy+=5)for(let dx=3;dx<CW-3;dx+=5){ctx.fillRect(x+dx,y+dy,3,1);ctx.fillRect(x+dx+1,y+dy-1,1,3);}
     return;
   }
-  ctx.fillStyle=t.wild?'#2a004a':'#e8d8ff'; ctx.fillRect(x,y,TW,TH);
-  const bc=sel?'#ffdd00':t.wild?'#ff00ff':SC[t.s];
-  pborder(x,y,TW,TH,bc);
-  if(sel){pborder(x+1,y+1,TW-2,TH-2,'#ffaa00');}
-  if(t.wild){
-    dsuit(x+5,y+6,0,'#ff88ff');
-    pt('W',x+5,y+13,'#dd66ff',1);
+  const wld=c.wild;
+  const col=wld?WCOL[c.v]:SUIT_COL[c.suit];
+  ctx.fillStyle=wld?'#120022':'#f0e0ff';ctx.fillRect(x,y,CW,CH);
+  pbord(x,y,CW,CH,wld?col:'#8800cc');
+  if(hov||selFlash){pbord(x+1,y+1,CW-2,CH-2,wld?col:'#ffaa00');}
+  if(wld){
+    ctx.fillStyle=col;ctx.fillRect(x+1,y+1,CW-2,3);ctx.fillRect(x+1,y+CH-4,CW-2,3);
+    ptc(WNAME[c.v],x+CW/2,y+6,col,1);
+    ptc('WILD',x+CW/2,y+14,'#ffffff',1);
+    ptc('!',x+CW/2,y+22,col,1);
   } else {
-    dsuit(x+1,y+2,t.s,SC[t.s]);
-    pc(String(t.v),x+5,y+7,SC[t.s],1);
-    dsuit(x+8,y+13,t.s,SC[t.s]);
+    const lbl=clabel(c);
+    const sc=lbl.length>1?1:2;
+    pt(lbl,x+2,y+2,col,1);
+    ptc(lbl,x+CW/2,y+CH/2-5,col,sc);
+    // suit dot
+    ctx.fillStyle=col;ctx.fillRect(x+CW/2-1,y+CH/2+5+sc*2,3,2);
   }
 }
 
-function pborder(x,y,w,h,col){
-  ctx.fillStyle=col;
-  ctx.fillRect(x,y,w,1);ctx.fillRect(x,y+h-1,w,1);
-  ctx.fillRect(x,y,1,h);ctx.fillRect(x+w-1,y,1,h);
-}
-
-// ── PIXEL BUTTON ─────────────────────────────────────────────────
-function pbtn(label,x,y,w,h,hov,col='#3d0077'){
-  ctx.fillStyle='#0a0018'; ctx.fillRect(x,y,w,h);
-  ctx.fillStyle=hov?lc(col):col; ctx.fillRect(x+1,y+1,w-2,h-2);
-  pborder(x,y,w,h,hov?'#ffdd00':'#6600aa');
-  const tw=ptw(label,1);
-  pt(label,Math.round(x+(w-tw)/2),Math.round(y+(h-6)/2),hov?'#ffee88':'#ccaaff',1);
-}
-function lc(c){const m={'#3d0077':'#5500aa','#2a0055':'#3d0077','#005533':'#007744','#550022':'#880033','#220033':'#440055'};return m[c]||'#5500aa';}
-
-// ── DITHER FILL ───────────────────────────────────────────────────
-function dith(x,y,w,h,c1,c2){
-  ctx.fillStyle=c1;ctx.fillRect(x,y,w,h);
-  ctx.fillStyle=c2;
-  for(let dy=0;dy<h;dy++) for(let dx=dy%2;dx<w;dx+=2) ctx.fillRect(x+dx,y+dy,1,1);
-}
-
-// ── EROS SPRITE (12×18) ───────────────────────────────────────────
-function eros(cx,cy){
-  const x=cx-6,y=cy-9;
-  // Wings
-  ctx.fillStyle='#dde8ff';
-  [[0,3,3],[0,4,4],[0,5,5],[0,6,4],[1,7,3],  // left
-   [9,3,3],[9,4,4],[8,5,5],[9,6,4],[9,7,3]   // right
-  ].forEach(([dx,dy,w])=>ctx.fillRect(x+dx,y+dy,w,1));
-  ctx.fillStyle='#bbbbee';
-  ctx.fillRect(x+1,y+4,2,2);ctx.fillRect(x+9,y+4,2,2);
-  // Halo
-  ctx.fillStyle='#ffd700';
-  ctx.fillRect(x+4,y,4,1);ctx.fillRect(x+3,y+1,1,1);ctx.fillRect(x+8,y+1,1,1);
-  // Hair
-  ctx.fillStyle='#ffcc44';
-  ctx.fillRect(x+3,y+1,6,2);ctx.fillRect(x+2,y+2,1,2);ctx.fillRect(x+9,y+2,1,2);
-  // Head
-  ctx.fillStyle='#ffd8a8'; ctx.fillRect(x+3,y+3,6,5);
-  // Blush
-  ctx.fillStyle='#ffaaaa'; ctx.fillRect(x+3,y+6,1,1);ctx.fillRect(x+8,y+6,1,1);
-  // Eyes
-  ctx.fillStyle='#330022'; ctx.fillRect(x+4,y+4,1,2);ctx.fillRect(x+7,y+4,1,2);
-  // Mouth
-  ctx.fillStyle='#cc6677'; ctx.fillRect(x+5,y+7,2,1);
-  // Tunic
-  ctx.fillStyle='#ff88cc'; ctx.fillRect(x+3,y+8,6,6);
-  ctx.fillStyle='#cc44aa'; ctx.fillRect(x+3,y+10,6,1);
-  // Arms/hands
-  ctx.fillStyle='#ffd8a8'; ctx.fillRect(x+1,y+9,2,3);ctx.fillRect(x+9,y+9,2,3);
-  // Bow (held left)
-  ctx.fillStyle='#885522'; ctx.fillRect(x+0,y+8,1,5);
-  ctx.fillStyle='#ccaa55'; ctx.fillRect(x+1,y+10,1,1);
-  // Arrow
-  ctx.fillStyle='#ccaa55'; ctx.fillRect(x+1,y+9,8,1);
-  ctx.fillStyle='#aaaaaa'; ctx.fillRect(x+9,y+8,1,1);ctx.fillRect(x+9,y+10,1,1);ctx.fillRect(x+10,y+9,1,1);
-  // Legs
-  ctx.fillStyle='#ffd8a8'; ctx.fillRect(x+4,y+14,2,3);ctx.fillRect(x+7,y+14,2,3);
-  // Sandals
-  ctx.fillStyle='#885522'; ctx.fillRect(x+3,y+17,3,1);ctx.fillRect(x+7,y+17,3,1);
-}
-
-// ── PLAYER SPRITE (12×18) ─────────────────────────────────────────
-function plyr(cx,cy){
-  const x=cx-6,y=cy-9;
-  ctx.fillStyle='#331100'; ctx.fillRect(x+2,y,8,3);ctx.fillRect(x+1,y+1,1,4);ctx.fillRect(x+10,y+1,1,4);
-  ctx.fillStyle='#ffd8a8'; ctx.fillRect(x+2,y+2,8,6);
-  ctx.fillStyle='#222244'; ctx.fillRect(x+4,y+4,1,2);ctx.fillRect(x+7,y+4,1,2);
-  ctx.fillStyle='#ffaaaa'; ctx.fillRect(x+3,y+6,1,1);ctx.fillRect(x+8,y+6,1,1);
-  ctx.fillStyle='#5500aa'; ctx.fillRect(x+2,y+8,8,7);
-  ctx.fillStyle='#7700cc'; ctx.fillRect(x+4,y+8,4,2);
-  ctx.fillStyle='#ffd8a8'; ctx.fillRect(x,y+9,2,4);ctx.fillRect(x+10,y+9,2,4);
-  ctx.fillStyle='#221133'; ctx.fillRect(x+2,y+15,3,2);ctx.fillRect(x+7,y+15,3,2);
-  ctx.fillStyle='#885522'; ctx.fillRect(x+2,y+17,3,1);ctx.fillRect(x+7,y+17,3,1);
-}
-
-// ── PARTICLES ────────────────────────────────────────────────────
+// ── PARTICLES + FLOATS ───────────────────────────────────────────
 let PTS=[];
-function spark(x,y,n=8,col='#ff4488'){
-  for(let i=0;i<n;i++) PTS.push({x,y,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3-1,life:1,dec:.022+Math.random()*.02,col,sz:1+(Math.random()>0.5?1:0)});
-}
-function tickPts(){PTS=PTS.filter(p=>p.life>0);PTS.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.06;p.life-=p.dec;});}
+function spark(x,y,n=8,col='#ff4488'){for(let i=0;i<n;i++)PTS.push({x,y,vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4-1.5,life:1,dec:.02+Math.random()*.02,col,sz:Math.random()>.5?2:1});}
+function tickPts(){PTS=PTS.filter(p=>p.life>0);PTS.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.07;p.life-=p.dec;});}
 function drawPts(){PTS.forEach(p=>{ctx.fillStyle=p.col;ctx.globalAlpha=p.life;ctx.fillRect(p.x|0,p.y|0,p.sz,p.sz);});ctx.globalAlpha=1;}
 
-// ── FLOATING SCORES ───────────────────────────────────────────────
 let FLT=[];
-function flt(txt,x,y,col,sc=1){FLT.push({txt,x,y,col,sc,life:80});}
+function flt(t,x,y,col,sc=1){FLT.push({t,x,y:y|0,col,sc,life:100});}
 function tickFlt(){FLT=FLT.filter(f=>f.life>0);FLT.forEach(f=>{f.y-=.5;f.life--;});}
-function drawFlt(){FLT.forEach(f=>{ctx.globalAlpha=f.life/80;ptc(f.txt,f.x|0,f.y|0,f.col,f.sc);});ctx.globalAlpha=1;}
+function drawFlt(){FLT.forEach(f=>{ctx.globalAlpha=Math.min(1,f.life/20);ptc(f.t,f.x|0,f.y|0,f.col,f.sc);});ctx.globalAlpha=1;}
+
+// ── ARROW ANIMATION ──────────────────────────────────────────────
+let ARW=null; // flying arrow
+let screenShake=0;
+
+function fireArrow(fromRight){
+  const fx=fromRight?440:40, fy=120, tx=fromRight?40:440, ty=115+Math.random()*20|0;
+  ARW={fx,fy,tx,ty,t:0,fromRight};
+  snd('whoosh');
+}
+
+function tickArrow(){
+  if(!ARW)return;
+  ARW.t+=0.028;
+  if(ARW.t>=1){
+    snd('ugh'); spark(ARW.tx,ARW.ty,18,'#ff4444'); spark(ARW.tx,ARW.ty,8,'#ffaa00');
+    screenShake=18;
+    if(ARW.fromRight){G.pState='hit';G.pStateF=0;G.stuckP.push({x:ARW.tx,y:ARW.ty});}
+    else              {G.oState='hit';G.oStateF=0;G.stuckO.push({x:ARW.tx,y:ARW.ty});}
+    ARW=null;
+    setTimeout(()=>{
+      if(G.pLives<=0||G.oLives<=0) G.phase='gameover';
+      else initRound();
+    },1200);
+  }
+}
+
+function drawArrow(){
+  if(!ARW)return;
+  const t=ARW.t;
+  const cx=ARW.fx+(ARW.tx-ARW.fx)*t;
+  const cy=ARW.fy+(ARW.ty-ARW.fy)*t - Math.sin(t*Math.PI)*22;
+  const nx=ARW.fx+(ARW.tx-ARW.fx)*(t+.05);
+  const ny=ARW.fy+(ARW.ty-ARW.fy)*(t+.05) - Math.sin((t+.05)*Math.PI)*22;
+  const ang=Math.atan2(ny-cy,nx-cx);
+  // trail
+  for(let i=1;i<=4;i++){
+    const tt=Math.max(0,t-i*.055);
+    const tx2=ARW.fx+(ARW.tx-ARW.fx)*tt, ty2=ARW.fy+(ARW.ty-ARW.fy)*tt-Math.sin(tt*Math.PI)*22;
+    ctx.fillStyle=`rgba(200,150,80,${.25/i})`;ctx.fillRect(tx2|0,ty2|0,2,1);
+  }
+  ctx.save();ctx.translate(cx|0,cy|0);ctx.rotate(ang);
+  ctx.fillStyle='#885522';ctx.fillRect(-11,-1,22,2);
+  ctx.fillStyle='#ccaa55';ctx.fillRect(-11,-1,22,1);
+  ctx.fillStyle='#cccccc';ctx.fillRect(9,-2,4,4);
+  ctx.fillStyle='#ff3355';ctx.fillRect(-13,-2,4,5);
+  ctx.fillStyle='#cc1133';ctx.fillRect(-13,-1,4,3);
+  ctx.restore();
+}
+
+// ── STUCK ARROWS ON CHARACTERS ───────────────────────────────────
+function drawStuck(){
+  G.stuckP.forEach(a=>{
+    ctx.fillStyle='#885522';ctx.fillRect(a.x,a.y,14,1);
+    ctx.fillStyle='#cccccc';ctx.fillRect(a.x+13,a.y-1,3,3);
+    ctx.fillStyle='#ff3355';ctx.fillRect(a.x-1,a.y-2,3,5);
+  });
+  G.stuckO.forEach(a=>{
+    ctx.fillStyle='#885522';ctx.fillRect(a.x-14,a.y,14,1);
+    ctx.fillStyle='#cccccc';ctx.fillRect(a.x-17,a.y-1,3,3);
+    ctx.fillStyle='#ff3355';ctx.fillRect(a.x+2,a.y-2,3,5);
+  });
+}
 
 // ── DECK + SCORING ────────────────────────────────────────────────
 function mkDeck(){
-  let d=[];
-  for(let s=0;s<4;s++) for(let v=1;v<=9;v++){d.push({s,v,wild:false});d.push({s,v,wild:false});}
-  d.push({wild:true});d.push({wild:true});
+  const d=[];
+  for(let s=0;s<4;s++)for(let v=1;v<=13;v++)d.push({v,suit:s,wild:false});
+  [14,15,16,17,18,14,15,16].forEach(v=>d.push({v,suit:0,wild:true}));
   return shuf(d);
 }
 function shuf(a){for(let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
 
-function score(tiles){
-  if(tiles.length<3)return{ok:false};
-  const nw=tiles.filter(t=>!t.wild),wc=tiles.length-nw.length;
-  if(!nw.length)return{ok:false};
-  if(nw.every(t=>t.v===nw[0].v)){
-    const chips=nw[0].v*10*tiles.length,mult=2+wc;
-    return{ok:true,name:'LOVE SET',chips,mult,score:chips*mult};
-  }
-  const s0=nw[0].s;
-  if(nw.every(t=>t.s===s0)){
-    const vals=nw.map(t=>t.v).sort((a,b)=>a-b);
-    let gaps=0;for(let i=1;i<vals.length;i++) gaps+=vals[i]-vals[i-1]-1;
-    if(gaps<=wc){
-      const sum=tiles.reduce((a,t)=>a+(t.wild?5:t.v),0);
-      const chips=sum*8,mult=parseFloat((1.5+tiles.length*.4+wc*.5).toFixed(1));
-      return{ok:true,name:tiles.length>=5?'CUPID STRT':'RUN',chips,mult,score:Math.round(chips*mult)};
-    }
-  }
-  if(nw.every(t=>t.s===s0)&&tiles.length>=4){
-    const chips=tiles.reduce((a,t)=>a+(t.wild?5:t.v),0)*12,mult=parseFloat((2.5+wc*.8).toFixed(1));
-    return{ok:true,name:'HEARTS DSR',chips,mult,score:Math.round(chips*mult)};
-  }
-  return{ok:false};
+function total(hand){
+  let t=0,ac=0;
+  hand.forEach(c=>{if(c.wild)return;if(c.v===1){t+=11;ac++;}else t+=cval(c);});
+  while(t>21&&ac>0){t-=10;ac--;}
+  return t;
 }
 
-// ── COMBOS HELPER (AI) ───────────────────────────────────────────
-function combs(n,k){const res=[],c=[];function bt(s){if(c.length===k){res.push([...c]);return;}for(let i=s;i<n;i++){c.push(i);bt(i+1);c.pop();}}bt(0);return res;}
+// ── WILD EFFECTS ─────────────────────────────────────────────────
+const WFULL={14:'+5 CURSE!',15:'HANDS SWAPPED!',16:'SHIELDED!',17:'CARD STOLEN!',18:'PEEK!'};
 
-// ── GAME STATE ───────────────────────────────────────────────────
-let G={phase:'menu',deck:[],disc:[],ph:[],oh:[],pScore:0,oScore:0,target:1000,round:1,sel:[],canDraw:true,msg:'',msgT:0,oppT:0,hTile:-1,hBtn:null,layout:null};
-function msg(m,t=100){G.msg=m;G.msgT=t;}
-
-function initRound(){G.deck=mkDeck();G.disc=[];G.ph=[];G.oh=[];G.sel=[];G.canDraw=true;G.msg='';G.msgT=0;FLT=[];for(let i=0;i<7;i++){G.ph.push(G.deck.pop());G.oh.push(G.deck.pop());}G.disc.push(G.deck.pop());G.phase='play';}
-function newGame(){G.pScore=0;G.oScore=0;G.round=1;initRound();}
-
-// ── ACTIONS ──────────────────────────────────────────────────────
-function actDraw(fd){
-  if(!G.canDraw)return;
-  if(fd&&G.disc.length){G.ph.push(G.disc.pop());spark(244,130,6,'#ff4488');}
-  else if(!fd&&G.deck.length){G.ph.push(G.deck.pop());spark(220,130,6,'#aa44ff');}
-  else return;
-  G.canDraw=false;G.sel=[];
-}
-function actPlay(){
-  if(G.canDraw||G.sel.length<3)return;
-  const sc=score(G.sel.map(i=>G.ph[i]));
-  if(!sc.ok){msg('INVALID!');return;}
-  [...G.sel].sort((a,b)=>b-a).forEach(i=>G.ph.splice(i,1));
-  G.sel=[];G.pScore+=sc.score;
-  flt('+'+sc.score+'!',LW/2,LH/2-5,SC[0],1);
-  flt(sc.chips+'x'+sc.mult,LW/2,LH/2+8,'#ffd700',1);
-  spark(LW/2,LH/2,20,SC[0]);spark(LW/2,LH/2,10,'#ffd700');
-  msg(sc.name+' +'+sc.score+'!',110);
-  if(G.pScore>=G.target){setTimeout(()=>G.phase='gameover',1200);return;}
-  if(!G.ph.length)for(let i=0;i<4&&G.deck.length;i++)G.ph.push(G.deck.pop());
-}
-function actDiscard(){
-  if(G.canDraw||G.sel.length!==1)return;
-  G.disc.push(G.ph.splice(G.sel[0],1)[0]);G.sel=[];
-  if(!G.ph.length)for(let i=0;i<5&&G.deck.length;i++)G.ph.push(G.deck.pop());
-  if(G.deck.length<3&&G.disc.length>1){const t=G.disc.pop();G.deck=shuf([...G.disc]);G.disc=[t];}
-  G.phase='opp';G.oppT=55+Math.random()*65|0;
+function applyWild(c,forP){
+  snd('wild');
+  G.wildFlash={col:WCOL[c.v],t:30};
+  flt(WFULL[c.v]||'WILD!',LW/2,LH/2-15,WCOL[c.v],1);
+  spark(LW/2,LH/2,12,WCOL[c.v]);
+  const v=c.v;
+  if(v===14){if(forP){G.oHand=[...G.oHand,{v:5,suit:0,wild:false,ghost:true}];flt('EROS +5!',LW/2+60,100,'#ff4444',1);}else{G.pHand=[...G.pHand,{v:5,suit:0,wild:false,ghost:true}];flt('YOU +5!',LW/2-60,180,'#ff4444',1);}}
+  if(v===15){const tmp=G.pHand;G.pHand=G.oHand;G.oHand=tmp;}
+  if(v===16){if(forP)G.pShield=true;else G.oShield=true;}
+  if(v===17){if(forP&&G.oHand.length>0){G.pHand.push(G.oHand.pop());}else if(!forP&&G.pHand.length>0){G.oHand.push(G.pHand.pop());}}
+  if(v===18){flt('EROS HAS '+total(G.oHand)+'!',LW/2,LH/2+5,'#ff44ff',1);}
 }
 
-// ── OPPONENT AI ──────────────────────────────────────────────────
+// ── GAME STATE ────────────────────────────────────────────────────
+let G={
+  phase:'menu',   // menu|player|opp|resolve|gameover
+  deck:[],pHand:[],oHand:[],
+  pLives:3,oLives:3,
+  pShield:false,oShield:false,
+  pState:'idle',pStateF:0,
+  oState:'idle',oStateF:0,
+  stuckP:[],stuckO:[],
+  oppTimer:0,
+  msg:'',msgT:0,
+  frame:0,
+  hBtn:null,
+  wildFlash:null,
+};
+function setMsg(m,t=130){G.msg=m;G.msgT=t;}
+
+// ── INIT ROUND ────────────────────────────────────────────────────
+function initRound(){
+  G.deck=mkDeck();G.pHand=[];G.oHand=[];
+  G.pShield=false;G.oShield=false;
+  G.msg='';G.msgT=0;G.wildFlash=null;FLT=[];
+  G.pState='idle';G.oState='idle';G.pStateF=0;G.oStateF=0;
+  ARW=null;
+  // Deal 1 card each
+  const pc=G.deck.pop(),oc=G.deck.pop();
+  G.pHand.push(pc);G.oHand.push(oc);
+  snd('card');
+  if(pc.wild){setTimeout(()=>applyWild(pc,true),300);}
+  if(oc.wild){setTimeout(()=>applyWild(oc,false),600);}
+  G.phase='player';
+}
+function newGame(){
+  G.pLives=3;G.oLives=3;G.stuckP=[];G.stuckO=[];
+  PTS=[];FLT=[];ARW=null;initRound();
+}
+
+// ── PLAYER ACTIONS ────────────────────────────────────────────────
+function actDraw(){
+  if(G.phase!=='player')return;
+  const c=G.deck.pop();if(!c)return;
+  G.pHand.push(c);snd('card');
+  G.pState='draw';G.pStateF=0;
+  spark(LW/2-10,155,6,'#aa44ff');
+  if(c.wild){setTimeout(()=>applyWild(c,true),200);return;}
+  const t=total(G.pHand);
+  if(t>21){
+    if(G.pShield){G.pShield=false;flt('SHIELD SAVES YOU!',LW/2,160,'#44ff88',1);return;}
+    snd('bust');setMsg('BUST! '+t);
+    G.pState='hit';G.pStateF=0;
+    setTimeout(()=>resolveRound(),800);
+  } else if(t===21){snd('win');setMsg('21! PERFECTO!');setTimeout(()=>resolveRound(),600);}
+}
+function actStand(){
+  if(G.phase!=='player')return;
+  G.phase='opp';G.oppTimer=50;G.oState='think';
+  setMsg('');
+}
+
+// ── OPPONENT AI ───────────────────────────────────────────────────
 function oppTick(){
-  if(G.oppT>0){G.oppT--;return;}
-  if(G.deck.length)G.oh.push(G.deck.pop());
-  let best=null,bsc=0,bix=[];
-  for(let sz=5;sz>=3;sz--){
-    for(const c of combs(G.oh.length,sz)){const sc=score(c.map(i=>G.oh[i]));if(sc.ok&&sc.score>bsc){bsc=sc.score;best=sc;bix=c;}}
-    if(bsc>80)break;
+  if(G.phase!=='opp')return;
+  if(G.oppTimer>0){G.oppTimer--;return;}
+  const ot=total(G.oHand),pt=total(G.pHand);
+  // Draw if under 17, or under player score and under 20
+  if(ot<17||(ot<=pt&&ot<20&&ot<21)){
+    const c=G.deck.pop();if(!c){resolveRound();return;}
+    G.oHand.push(c);snd('card');
+    G.oState='draw';G.oStateF=0;spark(LW/2+10,80,5,'#aa44ff');
+    if(c.wild){applyWild(c,false);}
+    const nt=total(G.oHand);
+    G.oppTimer=32;
+    if(nt>21){
+      if(G.oShield){G.oShield=false;return;}
+      snd('win');setMsg('EROS BUSTS! '+nt);
+      setTimeout(resolveRound,700);
+    } else if(nt===21){setTimeout(resolveRound,500);}
+  } else {
+    G.oState='idle';resolveRound();
   }
-  if(bsc>=55&&best){
-    [...bix].sort((a,b)=>b-a).forEach(i=>G.oh.splice(i,1));
-    G.oScore+=bsc;flt('EROS +'+bsc,LW/2,70,'#aa44ff',1);spark(LW/2,65,12,'#aa44ff');
-    if(G.oScore>=G.target){setTimeout(()=>G.phase='gameover',1200);return;}
-    while(G.oh.length<3&&G.deck.length)G.oh.push(G.deck.pop());
-  }
-  let wi=0,wb=Infinity;
-  for(let i=0;i<G.oh.length;i++){
-    let pot=0;
-    for(let j=0;j<G.oh.length;j++)for(let k=j+1;k<G.oh.length;k++){if(j===i||k===i)continue;if(score([G.oh[i],G.oh[j],G.oh[k]]).ok)pot++;}
-    if(pot<wb){wb=pot;wi=i;}
-  }
-  if(G.oh.length)G.disc.push(G.oh.splice(wi,1)[0]);
-  if(G.deck.length<3&&G.disc.length>1){const t=G.disc.pop();G.deck=shuf([...G.disc]);G.disc=[t];}
-  G.phase='play';G.canDraw=true;G.sel=[];
 }
 
-// ── HIT TEST ─────────────────────────────────────────────────────
-function tileAt(mx,my){
-  if(!G.layout)return -1;
-  const{sx,sp,y,n}=G.layout;
-  for(let i=n-1;i>=0;i--){
-    const tx=sx+i*sp,ty=y+(G.sel.includes(i)?-4:0);
-    if(mx>=tx&&mx<tx+TW&&my>=ty&&my<ty+TH)return i;
-  }
-  return -1;
-}
-function getBtns(){
-  if(G.phase!=='play')return[];
-  const btns=[],bx=363;
-  if(G.canDraw){
-    btns.push({id:'draw', label:'DRAW',    x:bx,y:115,w:76,h:12,col:'#3d0077'});
-    if(G.disc.length)btns.push({id:'ddisc',label:'TAKE DSC',x:bx,y:130,w:76,h:12,col:'#2a0055'});
+// ── RESOLVE ───────────────────────────────────────────────────────
+function resolveRound(){
+  if(G.phase==='resolve'||G.phase==='gameover')return;
+  G.phase='resolve';
+  const pt=total(G.pHand),ot=total(G.oHand);
+  let w;
+  if(pt>21)w='o';
+  else if(ot>21)w='p';
+  else if(pt>ot)w='p';
+  else if(ot>pt)w='o';
+  else w='tie';
+
+  if(w==='p'){
+    G.oLives--;snd('win');G.pState='win';G.pStateF=0;G.oState='hit';G.oStateF=0;
+    setMsg('YOU WIN THIS ROUND!');spark(LW/2,LH/2,22,'#ffd700');
+    setTimeout(()=>fireArrow(false),700); // player shoots Eros
+  } else if(w==='o'){
+    G.pLives--;snd('ugh');G.pState='hit';G.pStateF=0;G.oState='win';G.oStateF=0;
+    setMsg('EROS WINS THIS ROUND!');
+    setTimeout(()=>fireArrow(true),700); // Eros shoots player
   } else {
-    const sc=G.sel.length>=3?score(G.sel.map(i=>G.ph[i])):{ok:false};
-    if(sc.ok)btns.push({id:'play',label:'> PLAY <',x:bx,y:115,w:76,h:14,col:'#005533'});
-    if(G.sel.length===1)btns.push({id:'disc',label:'DISCARD',x:bx,y:132,w:76,h:12,col:'#550022'});
-    btns.push({id:'clr',label:'CLEAR',x:bx,y:148,w:76,h:11,col:'#220033'});
+    setMsg('TIE ROUND! NO ARROWS');
+    setTimeout(initRound,1400);
   }
-  return btns;
+}
+
+// ── BACKGROUND ────────────────────────────────────────────────────
+const STARS=[];for(let i=0;i<65;i++)STARS.push([Math.random()*LW|0,Math.random()*LH|0,Math.random()>.7?2:1,Math.random()]);
+const TWINKLE=[];for(let i=0;i<12;i++)TWINKLE.push([Math.random()*LW|0,Math.random()*LH|0]);
+
+function drawBG(){
+  ctx.fillStyle='#06000e';ctx.fillRect(0,0,LW,LH);
+  STARS.forEach(([sx,sy,sz,br])=>{ctx.fillStyle=br>.5?'#ffffff':'#886699';ctx.fillRect(sx,sy,sz,sz);});
+  // Twinkle stars
+  TWINKLE.forEach(([sx,sy],i)=>{
+    if(Math.sin(G.frame*.04+i*1.3)>.6){ctx.fillStyle='#ffffff';ctx.fillRect(sx-1,sy,1,1);ctx.fillRect(sx+1,sy,1,1);ctx.fillRect(sx,sy-1,1,1);ctx.fillRect(sx,sy+1,1,1);}
+  });
+  // Table surface
+  dith(55,88,370,94,'#1a0330','#220445');
+  ctx.fillStyle='#ffd700';
+  ctx.fillRect(55,88,370,2);ctx.fillRect(55,180,370,2);ctx.fillRect(55,88,2,94);ctx.fillRect(423,88,2,94);
+  ctx.fillStyle='#5500aa';
+  ctx.fillRect(57,90,366,1);ctx.fillRect(57,179,366,1);ctx.fillRect(57,90,1,91);ctx.fillRect(422,90,1,91);
+  // Corner gems
+  [[55,88],[421,88],[55,178],[421,178]].forEach(([gx,gy])=>{
+    ctx.fillStyle='#ffd700';ctx.fillRect(gx,gy,5,5);
+    ctx.fillStyle='#ffff88';ctx.fillRect(gx+1,gy+1,1,1);
+    ctx.fillStyle='#aa8800';ctx.fillRect(gx+3,gy+3,2,2);
+  });
+  // Center mandala
+  const mx=LW/2,my=LH/2;
+  ctx.fillStyle='#2d0050';ctx.fillRect(mx-22,my-1,44,2);ctx.fillRect(mx-1,my-22,2,44);
+  for(let d=4;d<=18;d+=4){ctx.fillStyle='#3a0060';ctx.fillRect(mx+d,my+d,1,1);ctx.fillRect(mx-d-1,my+d,1,1);ctx.fillRect(mx+d,my-d-1,1,1);ctx.fillRect(mx-d-1,my-d-1,1,1);}
+  ctx.fillStyle='#5a0088';ctx.fillRect(mx-2,my-2,4,1);ctx.fillRect(mx-1,my-2,1,4);ctx.fillRect(mx+1,my-2,1,4);ctx.fillRect(mx-2,my+1,4,1);
+}
+
+// ── LIVES BAR ─────────────────────────────────────────────────────
+function heart(x,y,col){ctx.fillStyle=col;ctx.fillRect(x+1,y,2,1);ctx.fillRect(x+5,y,2,1);ctx.fillRect(x,y+1,8,1);ctx.fillRect(x,y+2,8,1);ctx.fillRect(x+1,y+3,6,1);ctx.fillRect(x+2,y+4,4,1);ctx.fillRect(x+3,y+5,2,1);}
+
+function drawLives(){
+  ptc('LIVES',22,2,'#ff4477',1);
+  for(let i=0;i<3;i++)heart(2+i*14,9,i<G.pLives?'#ff4477':'#330011');
+  if(G.pShield){dith(2,18,44,7,'#002200','#003300');pbord(2,18,44,7,'#44ff88');ptc('SHIELD',24,19,'#44ff88',1);}
+
+  ptc('LIVES',LW-22,2,'#aa44ff',1);
+  for(let i=0;i<3;i++)heart(LW-44+i*14,9,i<G.oLives?'#aa44ff':'#220033');
+  if(G.oShield){dith(LW-46,18,44,7,'#002200','#003300');pbord(LW-46,18,44,7,'#44ff88');ptc('SHIELD',LW-24,19,'#44ff88',1);}
+}
+
+// ── HANDS DISPLAY ─────────────────────────────────────────────────
+function drawHands(){
+  const reveal=G.phase==='resolve'||G.phase==='gameover';
+
+  // Eros hand (top, y=33)
+  const on=G.oHand.length,osx=LW/2-on*(CW+2)/2;
+  G.oHand.forEach((c,i)=>drawCard(osx+i*(CW+2),33,c,reveal&&!c.ghost));
+  if(reveal){
+    const ot=total(G.oHand);
+    ptc(ot>21?'BUST!':''+ot,LW/2,33+CH+3,ot>21?'#ff4444':'#aa44ff',ot===21?2:1);
+  } else ptc('???',LW/2,33+CH+4,'#554466',1);
+
+  // Player hand (bottom, y=190)
+  const pn=G.pHand.length,psx=LW/2-pn*(CW+2)/2;
+  G.pHand.forEach((c,i)=>drawCard(psx+i*(CW+2),190,c,!c.ghost,G.hBtn===null&&false));
+  const pt2=total(G.pHand);
+  const pcol=pt2>21?'#ff4444':pt2===21?'#ffd700':'#ff4477';
+  ptc(pt2>21?'BUST!':''+pt2,LW/2,190+CH+4,pcol,pt2===21?2:1);
+}
+
+// ── DECK PILE ─────────────────────────────────────────────────────
+function drawDeck(){
+  if(G.deck.length>1){drawCard(LW/2-CW/2+2,LH/2-CH/2-2,null,false);}
+  if(G.deck.length>0){drawCard(LW/2-CW/2,LH/2-CH/2,null,false);}
+  ptc(G.deck.length+'',LW/2,LH/2+CH/2+4,'#554466',1);
+  ptc('DECK',LW/2,LH/2+CH/2+10,'#443355',1);
+}
+
+// ── BUTTONS ──────────────────────────────────────────────────────
+function getBtns(){
+  if(G.phase!=='player')return[];
+  return[
+    {id:'draw', label:'DRAW',  x:LW/2-58,y:LH-20,w:48,h:14,col:'#3d0077'},
+    {id:'stand',label:'STAND', x:LW/2+10,y:LH-20,w:48,h:14,col:'#550022'},
+  ];
 }
 function btnAt(mx,my){
-  if(G.phase==='menu'    &&mx>=LW/2-40&&mx<LW/2+40&&my>=164&&my<176)return'start';
-  if(G.phase==='gameover'&&mx>=LW/2-40&&mx<LW/2+40&&my>=158&&my<170)return'restart';
+  if(G.phase==='menu'    &&mx>=LW/2-52&&mx<LW/2+52&&my>=195&&my<210)return'start';
+  if(G.phase==='gameover'&&mx>=LW/2-52&&mx<LW/2+52&&my>=195&&my<210)return'restart';
   for(const b of getBtns())if(mx>=b.x&&mx<b.x+b.w&&my>=b.y&&my<b.y+b.h)return b.id;
-  const py=LH/2-TH/2;
-  if(G.phase==='play'){
-    if(mx>=213&&mx<213+TW&&my>=py&&my<py+TH)return'draw';
-    if(mx>=230&&mx<230+TW&&my>=py&&my<py+TH)return'ddisc';
-  }
   return null;
 }
 
-// ── TABLE BACKGROUND ─────────────────────────────────────────────
-const STARS=[];
-for(let i=0;i<60;i++) STARS.push([Math.random()*LW|0,Math.random()*LH|0,Math.random()>.7?2:1,Math.random()*.8+.2]);
-
-function drawTable(){
-  ctx.fillStyle='#06000e';ctx.fillRect(0,0,LW,LH);
-  // Stars
-  STARS.forEach(([sx,sy,sz,br])=>{
-    ctx.fillStyle=br>.6?'#ffffff':'#886699';
-    ctx.fillRect(sx,sy,sz,sz);
-    if(sz===2&&br>.8){ctx.fillStyle='#aa88ff';ctx.fillRect(sx-1,sy,1,1);ctx.fillRect(sx+2,sy,1,1);}
-  });
-  // Felt table
-  dith(32,46,416,176,'#1a0330','#220445');
-  // Table border: gold outer, purple inner
-  ctx.fillStyle='#ffd700';
-  ctx.fillRect(32,46,416,2);ctx.fillRect(32,220,416,2);ctx.fillRect(32,46,2,176);ctx.fillRect(446,46,2,176);
-  ctx.fillStyle='#5500aa';
-  ctx.fillRect(34,48,412,1);ctx.fillRect(34,219,412,1);ctx.fillRect(34,48,1,173);ctx.fillRect(445,48,1,173);
-  // Corner gems
-  [[32,46],[444,46],[32,218],[444,218]].forEach(([cx,cy])=>{
-    ctx.fillStyle='#ffd700';ctx.fillRect(cx,cy,5,5);
-    ctx.fillStyle='#ffff88';ctx.fillRect(cx+1,cy+1,1,1);
-    ctx.fillStyle='#aa8800';ctx.fillRect(cx+3,cy+3,2,2);
-  });
-  // Center ornament
-  const mx=LW/2,my=LH/2;
-  ctx.fillStyle='#3a005a';
-  ctx.fillRect(mx-24,my-1,48,2);ctx.fillRect(mx-1,my-24,2,48);
-  ctx.fillStyle='#4a006a';
-  for(let d=3;d<=20;d+=4){ctx.fillRect(mx+d,my+d,1,1);ctx.fillRect(mx-d-1,my+d,1,1);ctx.fillRect(mx+d,my-d-1,1,1);ctx.fillRect(mx-d-1,my-d-1,1,1);}
-  // Center heart
-  dsuit(mx-2,my-2,0,'#3a005a');
-}
-
-// ── SCORE BARS ────────────────────────────────────────────────────
-function drawScoreBars(){
-  const by=56,bh=148,bw=7;
-  [[36,G.pScore,SC[0],'P'],[443,G.oScore,'#aa44ff','E']].forEach(([bx,sc,col,lbl])=>{
-    ctx.fillStyle='#080015';ctx.fillRect(bx,by,bw,bh);
-    const pct=Math.min(1,sc/G.target);
-    ctx.fillStyle=col;ctx.fillRect(bx,by+bh*(1-pct)|0,bw,(bh*pct)|0);
-    // Tick marks every 20%
-    ctx.fillStyle='#330055';
-    for(let t=1;t<5;t++)ctx.fillRect(bx,by+bh*t/5|0,bw,1);
-    pborder(bx,by,bw,bh,'#440077');
-    pc(lbl,bx+1,by+bh+2,col);
-  });
-}
-
-// ── OPPONENT ─────────────────────────────────────────────────────
-function drawOpp(){
-  const cx=LW/2,ty=4;
-  // Avatar box
-  dith(cx-10,ty,20,22,'#1a0035','#220044');
-  pborder(cx-10,ty,20,22,'#5500aa');
-  eros(cx,ty+11);
-  ptc('EROS',cx,ty+25,'#ffd700',1);
-  ptc(G.oScore+'',cx,ty+33,'#cc88ff',1);
-  if(G.phase==='opp'){const d='.'+(Date.now()/300|0)%2?'..':'...';ptc(d,cx,ty+41,'#ff88cc',1);}
-}
-
-function drawOppHand(){
-  const n=G.oh.length;if(!n)return;
-  const sp=Math.min(TW+1,Math.floor(240/Math.max(n,1)));
-  const tot=(n-1)*sp+TW,sx=LW/2-tot/2,y=50;
-  for(let i=0;i<n;i++)tile(sx+i*sp,y,null,false);
-}
-
-// ── DRAW/DISCARD PILES ───────────────────────────────────────────
-function drawPiles(){
-  const py=LH/2-TH/2;
-  const dpx=213;
-  if(G.deck.length){
-    tile(dpx+2,py-2,null,false);
-    tile(dpx,py,null,false);
-    ptc(G.deck.length+'',dpx+TW/2,py+TH+2,'#664488',1);
-    ptc('DRAW',dpx+TW/2,py+TH+9,'#664488',1);
-  }
-  const dsx=230;
-  if(G.disc.length){
-    tile(dsx,py,G.disc[G.disc.length-1],true);
-  } else {
-    dith(dsx,py,TW,TH,'#220040','#2d0050');
-    pborder(dsx,py,TW,TH,'#440066');
-  }
-  ptc('DISC',dsx+TW/2,py+TH+9,'#664488',1);
-}
-
-// ── PLAYER HAND ──────────────────────────────────────────────────
-function drawPHand(){
-  const n=G.ph.length;if(!n){G.layout=null;return;}
-  const sp=Math.min(TW+2,Math.floor(300/Math.max(n-1,1)));
-  const tot=Math.min(300,(n-1)*sp+TW),sx=LW/2-tot/2|0,y=LH-TH-18;
-  G.layout={sx,sp,y,n};
-  for(let i=0;i<n;i++)tile(sx+i*sp,y,G.ph[i],true,G.sel.includes(i),G.hTile===i);
-}
-
-// ── COMBO PREVIEW ────────────────────────────────────────────────
-function drawPreview(){
-  if(G.canDraw||G.sel.length<3)return;
-  const sc=score(G.sel.map(i=>G.ph[i]));
-  const bx=56,by=LH/2-14,bw=144,bh=26;
-  dith(bx,by,bw,bh,'#08001a','#100025');
-  pborder(bx,by,bw,bh,sc.ok?'#00cc44':'#cc0033');
-  if(sc.ok){
-    pt(sc.name,bx+3,by+3,'#44ff88',1);
-    pt(sc.chips+'x'+sc.mult+'='+sc.score,bx+3,by+12,'#ffd700',1);
-    pt('> PLAY! <',bx+3,by+20,'#88ff88',1);
-  } else {
-    ptc('NOT VALID',bx+bw/2,by+10,'#ff4444',1);
-  }
+// ── WILD FLASH OVERLAY ────────────────────────────────────────────
+function drawWildFlash(){
+  if(!G.wildFlash||G.wildFlash.t<=0)return;
+  ctx.globalAlpha=G.wildFlash.t/30*.4;
+  ctx.fillStyle=G.wildFlash.col;ctx.fillRect(0,0,LW,LH);
+  ctx.globalAlpha=1;
+  G.wildFlash.t--;
 }
 
 // ── MENU ─────────────────────────────────────────────────────────
 function drawMenu(){
-  ctx.fillStyle='#06000e';ctx.fillRect(0,0,LW,LH);
-  STARS.forEach(([sx,sy,sz,br])=>{ctx.fillStyle=br>.6?'#ffffff':'#886699';ctx.fillRect(sx,sy,sz,sz);});
+  drawBG();
+  // Title banner
+  dith(15,5,450,22,'#1a0035','#280055');pbord(15,5,450,22,'#ffd700');
+  ptc("CUPID'S 21",LW/2,9,'#ff88cc',2);
 
-  // Title panel
-  dith(20,6,440,22,'#1a0035','#240050');
-  pborder(20,6,440,22,'#ffd700');
-  ptc("CUPID'S TABLE",LW/2,10,'#ff88cc',2);
+  // Characters facing each other
+  drawChar(90,110,'idle',G.frame%60,false);
+  drawChar(390,110,'idle',G.frame%60,true);
+  ptc('VS',LW/2,104,'#ffd700',2);
 
-  // Sprites
-  eros(LW/2-30,68);
-  plyr(LW/2+30,68);
+  // Rules
+  dith(20,145,440,44,'#0a0020','#130030');pbord(20,145,440,44,'#5500aa');
+  ptc('GET CLOSEST TO 21 WITHOUT GOING OVER',LW/2,149,'#ccaaff',1);
+  ptc('DRAW A CARD OR STAND EACH TURN',LW/2,157,'#aaaacc',1);
+  ptc('WILD CARDS: +5 CURSE  SWAP HANDS',LW/2,165,'#ff88ff',1);
+  ptc('SHIELD FROM BUST  STEAL  PEEK',LW/2,173,'#ff88ff',1);
+  ptc('LOSE A ROUND = EROS SHOOTS AN ARROW  3 HITS = DEAD',LW/2,181,'#ff4477',1);
 
-  // Hearts between them
-  dsuit(LW/2-2,60,0,'#ff4477');
-
-  ptc('VS',LW/2,84,'#ffd700',1);
-
-  // Rules panel
-  dith(18,95,444,60,'#0a0020','#120030');
-  pborder(18,95,444,60,'#5500aa');
-  const rules=[
-    ['LOVE SET', '3+ SAME NUM  10xVAL x 2 MULT','#ff4477'],
-    ['LOVERS RUN','3+ SAME SUIT SEQ  8xSUM MULT','#55ddcc'],
-    ['HEARTS DSR','4+ SAME SUIT  12xSUM MULT',   '#ff77bb'],
-    ['CUPID WILD','FILLS ANY GAP  +0.5 MULT',    '#ff88ff'],
-  ];
-  rules.forEach(([title,desc,col],i)=>{
-    pt(title,22,98+i*13,col,1);
-    pt(desc,76,98+i*13,'#aaaacc',1);
-  });
-
-  // How to play
-  dith(18,158,444,14,'#0a0020','#120030');
-  pborder(18,158,444,14,'#440077');
-  ptc('DRAW TILE > SELECT 3+ > PLAY COMBO > DISCARD 1 TO END TURN',LW/2,162,'#776688',1);
-
-  ptc('TARGET: 1000 PTS  FIRST TO WIN!',LW/2,175,'#664477',1);
-
-  pbtn('> START GAME <',LW/2-40,164,80,13,G.hBtn==='start','#5500aa');
-
-  drawPts();
+  pbtn('> CLICK TO START <',LW/2-52,196,104,14,G.hBtn==='start','#5500aa');
+  drawFlt();drawPts();
 }
 
-// ── GAME OVER ────────────────────────────────────────────────────
+// ── GAME OVER ─────────────────────────────────────────────────────
 function drawGameOver(){
-  ctx.fillStyle='#06000e';ctx.fillRect(0,0,LW,LH);
-  STARS.forEach(([sx,sy,sz])=>{ctx.fillStyle='#ffffff';ctx.fillRect(sx,sy,sz,sz);});
-  const won=G.pScore>=G.target;
-  dith(20,12,440,18,'#1a0035','#240050');
-  pborder(20,12,440,18,won?'#ff4477':'#aa44ff');
-  ptc(won?'YOU WIN!':'EROS WINS',LW/2,16,won?'#ff88cc':'#aa44ff',2);
-  ptc(won?'LOVE PREVAILS!':'HEARTBROKEN...',LW/2,36,'#ffd700',1);
-  if(won){eros(LW/2+30,75);plyr(LW/2-30,75);}
-  else{eros(LW/2,75);}
-  dsuit(LW/2-2,92,0,won?'#ff4477':'#440055');
-  ptc('YOUR SCORE  '+G.pScore,LW/2,110,'#ffd700',1);
-  ptc('EROS SCORE  '+G.oScore,LW/2,120,'#aa44ff',1);
-  ptc('TARGET WAS  '+G.target,LW/2,130,'#664488',1);
-  pbtn('> PLAY AGAIN <',LW/2-40,158,80,13,G.hBtn==='restart','#5500aa');
-  drawPts();
+  drawBG();
+  const won=G.pLives>0;
+  dith(15,5,450,22,'#1a0035','#280055');pbord(15,5,450,22,won?'#ff4477':'#aa44ff');
+  ptc(won?'YOU WIN!':'YOU DIED',LW/2,9,won?'#ff88cc':'#aa44ff',2);
+  drawChar(LW/2-(won?35:-5),110,won?'win':'hit',40,false);
+  drawChar(LW/2+(won?5:-35),110,won?'hit':'win',40,true);
+  ptc(won?'EROS IS DEFEATED! LOVE WINS!':'CUPID IS DEAD. EROS TRIUMPHS.',LW/2,158,'#ffd700',1);
+  ptc(won?'HEARTS PIERCED ACROSS THE LAND':'YOUR ARROWS NEVER FOUND THEIR MARK',LW/2,167,'#664488',1);
+  pbtn('> PLAY AGAIN <',LW/2-52,196,104,14,G.hBtn==='restart','#5500aa');
+  drawFlt();drawPts();
 }
 
-// ── INPUT ────────────────────────────────────────────────────────
+// ── INPUT ─────────────────────────────────────────────────────────
 C.addEventListener('click',e=>{
+  initAC();
   const r=C.getBoundingClientRect(),s=C._s||1;
   const mx=(e.clientX-r.left)/s,my=(e.clientY-r.top)/s;
   const b=btnAt(mx,my);
-  if(G.phase==='menu')    {if(b==='start')  newGame();     return;}
-  if(G.phase==='gameover'){if(b==='restart')G.phase='menu';return;}
-  if(G.phase!=='play')return;
-  if(b==='draw') {actDraw(false);return;}
-  if(b==='ddisc'){actDraw(true); return;}
-  if(b==='play') {actPlay();     return;}
-  if(b==='disc') {actDiscard();  return;}
-  if(b==='clr')  {G.sel=[];      return;}
-  const ti=tileAt(mx,my);
-  if(ti>=0){const si=G.sel.indexOf(ti);si>=0?G.sel.splice(si,1):G.sel.push(ti);}
+  if(G.phase==='menu')    {if(b==='start')  newGame();}
+  if(G.phase==='gameover'){if(b==='restart')G.phase='menu';}
+  if(b==='draw') actDraw();
+  if(b==='stand')actStand();
 });
 C.addEventListener('mousemove',e=>{
   const r=C.getBoundingClientRect(),s=C._s||1;
   const mx=(e.clientX-r.left)/s,my=(e.clientY-r.top)/s;
-  G.hTile=tileAt(mx,my);G.hBtn=btnAt(mx,my);
-  C.style.cursor=(G.hBtn||G.hTile>=0)?'pointer':'default';
+  G.hBtn=btnAt(mx,my);C.style.cursor=G.hBtn?'pointer':'default';
 });
 
 // ── MAIN LOOP ─────────────────────────────────────────────────────
 function loop(){
   requestAnimationFrame(loop);
-  tickPts();tickFlt();
+  G.frame++;G.pStateF++;G.oStateF++;
+  tickPts();tickFlt();tickArrow();
   if(G.msgT>0)G.msgT--;
-  if(G.phase==='menu')    {drawMenu();   return;}
-  if(G.phase==='gameover'){drawGameOver();return;}
+  if(screenShake>0)screenShake--;
+  // auto-reset animation states
+  if(G.pState==='draw'&&G.pStateF>18){G.pState='idle';G.pStateF=0;}
+  if(G.oState==='draw'&&G.oStateF>18){G.oState='idle';G.oStateF=0;}
+  if(G.pState==='hit' &&G.pStateF>35){G.pState='idle';G.pStateF=0;}
+  if(G.oState==='hit' &&G.oStateF>35){G.oState='idle';G.oStateF=0;}
+  if(G.pState==='win' &&G.pStateF>50){G.pState='idle';G.pStateF=0;}
+  if(G.oState==='win' &&G.oStateF>50){G.oState='idle';G.oStateF=0;}
+
   if(G.phase==='opp')oppTick();
+  if(G.phase==='menu')   {drawMenu();   return;}
+  if(G.phase==='gameover'){drawGameOver();return;}
 
-  drawTable();
-  drawScoreBars();
-  drawOpp();
-  drawOppHand();
-  drawPiles();
-  drawPHand();
+  // Screen shake translate
+  const sx=screenShake>0?(Math.random()-.5)*5|0:0;
+  const sy=screenShake>0?(Math.random()-.5)*3|0:0;
+  ctx.save();ctx.translate(sx,sy);
+
+  drawBG();
+  drawLives();
+  drawChar(60,128,G.pState,G.pStateF,false);
+  drawChar(420,128,G.oState,G.oStateF,true);
+  drawStuck();
+  drawHands();
+  drawDeck();
+
+  // Buttons
   getBtns().forEach(b=>pbtn(b.label,b.x,b.y,b.w,b.h,G.hBtn===b.id,b.col));
-  drawPreview();
 
-  // Player info bar
-  dith(32,222,416,8,'#0a001a','#120025');
-  pborder(32,222,416,8,'#330055');
-  pt('YOU',36,224,'#ffd700',1);
-  pt(G.pScore+'/'+G.target,78,224,'#cc88ff',1);
-  ptc(G.phase==='play'?'YOUR TURN':'EROS THINKING...',LW/2,224,G.phase==='play'?SC[0]:'#aa44ff',1);
-  pt('RND '+G.round,LW-50,224,'#664488',1);
+  // Status bar
+  dith(0,LH-12,LW,12,'#080018','#0e0020');
+  const phl=G.phase==='player'?'YOUR TURN  DRAW OR STAND':G.phase==='opp'?'EROS IS THINKING...':G.phase==='resolve'?'ROUND OVER':'';
+  if(phl)ptc(phl,LW/2,LH-10,G.phase==='player'?'#ff4477':'#aa44ff',1);
+  pt('P:'+total(G.pHand),4,LH-10,'#ff4477',1);
+  pt('E:'+(G.phase==='resolve'||G.phase==='gameover'?total(G.oHand):'??'),LW-40,LH-10,'#aa44ff',1);
 
   // Message
-  if(G.msgT>0){
-    ctx.globalAlpha=Math.min(1,G.msgT/25);
-    ptc(G.msg,LW/2,LH/2-12,'#ff88cc',1);
-    ctx.globalAlpha=1;
-  }
+  if(G.msgT>0){ctx.globalAlpha=Math.min(1,G.msgT/20);ptc(G.msg,LW/2,LH/2-8,'#ff88cc',1);ctx.globalAlpha=1;}
 
-  // Hint below player hand
-  pt(G.canDraw&&G.phase==='play'?'CLICK DRAW PILE OR DISC PILE TO DRAW':'SELECT TILES  PLAY COMBO  OR  DISCARD 1',35,LH-9,'#2a0044',1);
-
+  drawWildFlash();
+  drawArrow();
   drawFlt();drawPts();
+  ctx.restore();
 }
 
-// Ambient sparkle
-setInterval(()=>{if(G.phase==='menu'||G.phase==='gameover')spark(Math.random()*LW|0,Math.random()*LH|0,2,Math.random()>.5?SC[0]:'#aa44ff');},300);
+// Ambient sparkle on menu/gameover
+setInterval(()=>{if(G.phase==='menu'||G.phase==='gameover')spark(Math.random()*LW|0,Math.random()*LH|0,2,Math.random()>.5?'#ff4488':'#aa44ff');},320);
 
 loop();
 </script>

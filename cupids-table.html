@@ -77,12 +77,13 @@ function renderVidPixel(dx,dy,dw,dh){
 }
 
 function startVideo(){
-  if(!vidReady){
-    // Retry once video is ready
-    VID.addEventListener('canplaythrough',()=>VID.play().catch(()=>{}),{once:true});
-  } else {
-    VID.currentTime=0; VID.play().catch(()=>{});
-  }
+  // Hard fallback: if video doesn't end within 8s, skip to menu
+  const bail=setTimeout(()=>{if(G&&G.phase==='intro')G.phase='menu';},8000);
+  VID.addEventListener('ended',()=>clearTimeout(bail),{once:true});
+  VID.addEventListener('error',()=>{clearTimeout(bail);if(G&&G.phase==='intro')G.phase='menu';},{once:true});
+  const tryPlay=()=>VID.play().catch(()=>{if(G&&G.phase==='intro')G.phase='menu';});
+  if(VID.readyState>=3){VID.currentTime=0;tryPlay();}
+  else{VID.addEventListener('canplaythrough',()=>{VID.currentTime=0;tryPlay();},{once:true});}
 }
 
 // ── EROS PORTRAIT SPRITES (3 stills → palette-baked offscreen canvases) ──
@@ -94,22 +95,25 @@ const EROS_AC=EROS_A.getContext('2d',{willReadFrequently:true});
 const EROS_WC=EROS_W.getContext('2d',{willReadFrequently:true});
 const EROS_IC=EROS_I.getContext('2d',{willReadFrequently:true});
 let erosA=false,erosW=false,erosId=false;
-function bakeImg(srcEl,oc,occ,setFlag){
-  if(!srcEl.naturalWidth)return;
-  occ.drawImage(srcEl,0,0,60,38);
-  const id=occ.getImageData(0,0,60,38),d=id.data;
-  for(let i=0;i<d.length;i+=4){const[r,g,b]=nearP(d[i],d[i+1],d[i+2]);d[i]=r;d[i+1]=g;d[i+2]=b;}
-  occ.putImageData(id,0,0);setFlag();
+// createImageBitmap guarantees the image is decoded before we drawImage to canvas
+function bakeImg(el,oc,occ,setFlag){
+  createImageBitmap(el).then(bmp=>{
+    occ.drawImage(bmp,0,0,60,38);
+    const id=occ.getImageData(0,0,60,38),d=id.data;
+    for(let i=0;i<d.length;i+=4){const[r,g,b]=nearP(d[i],d[i+1],d[i+2]);d[i]=r;d[i+1]=g;d[i+2]=b;}
+    occ.putImageData(id,0,0);setFlag();
+  }).catch(()=>{});
+}
+function tryBake(el,oc,occ,setFlag){
+  if(el.complete&&el.naturalWidth>0){bakeImg(el,oc,occ,setFlag);}
+  else{el.addEventListener('load',()=>bakeImg(el,oc,occ,setFlag),{once:true});}
 }
 const EA_EL=document.getElementById('ea');
 const EW_EL=document.getElementById('ew');
 const EI_EL=document.getElementById('ei');
-EA_EL.addEventListener('load',()=>bakeImg(EA_EL,EROS_A,EROS_AC,()=>{erosA=true;}));
-EW_EL.addEventListener('load',()=>bakeImg(EW_EL,EROS_W,EROS_WC,()=>{erosW=true;}));
-EI_EL.addEventListener('load',()=>bakeImg(EI_EL,EROS_I,EROS_IC,()=>{erosId=true;}));
-if(EA_EL.complete)bakeImg(EA_EL,EROS_A,EROS_AC,()=>{erosA=true;});
-if(EW_EL.complete)bakeImg(EW_EL,EROS_W,EROS_WC,()=>{erosW=true;});
-if(EI_EL.complete)bakeImg(EI_EL,EROS_I,EROS_IC,()=>{erosId=true;});
+tryBake(EA_EL,EROS_A,EROS_AC,()=>{erosA=true;});
+tryBake(EW_EL,EROS_W,EROS_WC,()=>{erosW=true;});
+tryBake(EI_EL,EROS_I,EROS_IC,()=>{erosId=true;});
 
 function blitEros(oc,dx,dy,dw,dh){
   ctx.imageSmoothingEnabled=false;ctx.drawImage(oc,dx,dy,dw,dh);ctx.imageSmoothingEnabled=false;
@@ -198,7 +202,7 @@ function drawEros(st,sf){
       ctx.strokeRect(epx-exp+shk,oy-exp,epw+exp*2,eph+exp*2);
     }
     if(erosA){blitEros(EROS_A,epx+shk,oy,epw,eph);}
-    else{fillR(epx,0,epw,eph,'#2a0000');}
+    else{fillR(epx,oy,epw,eph,'#3a0010');pbord(epx,oy,epw,eph,'#ff3300');}
     // Flash overlay
     if(G.frame%8<4){ctx.fillStyle='rgba(255,0,0,.2)';ctx.fillRect(epx+shk,oy,epw,eph);}
     // Scanlines
@@ -216,7 +220,7 @@ function drawEros(st,sf){
     ctx.strokeStyle=`rgba(255,215,0,${ga*.5})`;ctx.lineWidth=1;
     ctx.strokeRect(epx-7,oy-7+bounce,epw+14,eph+14);
     if(erosW){blitEros(EROS_W,epx-(grow/2|0),oy+bounce-(grow/2|0),epw+grow,eph+grow);}
-    else{fillR(epx,0,epw,eph,'#1a0800');}
+    else{fillR(epx,oy+bounce,epw,eph,'#1a0800');pbord(epx,oy+bounce,epw,eph,'#ffd700');}
     // Gold shimmer sweep
     const sh=(G.frame%30)/30;
     ctx.fillStyle=`rgba(255,215,0,${sh*.08})`;ctx.fillRect(epx,oy+bounce,epw,eph);
@@ -241,7 +245,7 @@ function drawEros(st,sf){
         fillR(cx+5,oy+22,3,2,'#ffffff');
       }
     } else {
-      fillR(epx,0,epw,eph,'#0a001a');
+      fillR(epx,oy,epw,eph,'#120030');pbord(epx,oy,epw,eph,'#5500aa');
     }
     if(st==='think'){
       const dots='.'.repeat(1+(G.frame/20|0)%3+1);
@@ -722,8 +726,8 @@ C.addEventListener('click',e=>{
   const mx=(e.clientX-r.left)/s,my=(e.clientY-r.top)/s;
   const b=btnAt(mx,my);
   if(G.phase==='intro'){
-    if(b==='skip'){VID.pause();VID.currentTime=99;G.phase='menu';}
-    else if(!G.vidStarted){G.vidStarted=true;startVideo();}
+    if(b==='skip'||G.vidStarted){VID.pause();G.phase='menu';}  // skip or re-click → go to menu
+    else{G.vidStarted=true;startVideo();}
   }
   if(G.phase==='menu')    {if(b==='start')  newGame();}
   if(G.phase==='gameover'){if(b==='restart')G.phase='menu';}

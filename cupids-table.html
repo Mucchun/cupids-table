@@ -11,6 +11,7 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer}
 </head>
 <body>
 <canvas id="c"></canvas>
+<video id="v" src="eros.mp4" playsinline preload="auto" style="display:none"></video>
 <script>
 // CUPID'S 21 — POV edition — BioCraftEd Jam 2026
 const C=document.getElementById('c'),ctx=C.getContext('2d');
@@ -19,6 +20,67 @@ C.width=LW;C.height=LH;
 ctx.imageSmoothingEnabled=false;
 function resize(){const s=Math.min(innerWidth/LW,innerHeight/LH);C.style.width=LW*s+'px';C.style.height=LH*s+'px';C._s=s;}
 addEventListener('resize',resize);resize();
+
+// ── PIXEL ART VIDEO ENGINE ────────────────────────────────────────
+// Video is 1280×720 (16:9), 5s. We render to a tiny offscreen canvas
+// then scale up with imageSmoothingEnabled=false for chunky pixel art.
+const VID=document.getElementById('v');
+// Offscreen canvas: 80×45 (exactly 16:9 at 4× = 320×180 on screen)
+const PV=document.createElement('canvas'); PV.width=80; PV.height=45;
+const PVC=PV.getContext('2d',{willReadFrequently:true});
+
+// 24-color palette: game purple theme + skin tones for the video character
+const PAL=[
+  [6,0,14],[16,0,30],[26,3,48],[34,0,85],[55,0,120],
+  [85,0,170],[136,34,204],[170,68,255],[204,136,255],
+  [255,68,119],[255,136,204],[255,180,220],
+  [255,215,0],[255,240,120],[200,160,40],
+  [255,255,255],[180,160,200],[100,80,140],
+  [200,136,80],[168,96,48],[120,60,20],[80,30,10],
+  [26,8,0],[0,0,0],
+];
+function nearP(r,g,b){
+  let bi=0,bd=Infinity;
+  for(let i=0;i<PAL.length;i++){
+    const d=(r-PAL[i][0])**2+(g-PAL[i][1])**2+(b-PAL[i][2])**2;
+    if(d<bd){bd=d;bi=i;}
+  }
+  return PAL[bi];
+}
+
+let vidReady=false, vidEnded=false, _qFrame=0;
+VID.addEventListener('canplaythrough',()=>vidReady=true);
+VID.addEventListener('ended',()=>{vidEnded=true; if(G&&G.phase==='intro') G.phase='menu';});
+VID.addEventListener('error',()=>{ vidReady=false; if(G&&G.phase==='intro') G.phase='menu'; });
+
+function renderVidPixel(dx,dy,dw,dh){
+  if(!vidReady||VID.readyState<2) return false;
+  // Draw video frame → tiny canvas
+  PVC.drawImage(VID,0,0,80,45);
+  // Palette-quantize every frame (80×45=3600 px, fast enough)
+  _qFrame++;
+  if(_qFrame%2===0){ // quantize every other frame
+    const id=PVC.getImageData(0,0,80,45),d=id.data;
+    for(let i=0;i<d.length;i+=4){
+      const[r,g,b]=nearP(d[i],d[i+1],d[i+2]);
+      d[i]=r;d[i+1]=g;d[i+2]=b;
+    }
+    PVC.putImageData(id,0,0);
+  }
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(PV,dx,dy,dw,dh);
+  ctx.imageSmoothingEnabled=false;
+  return true;
+}
+
+function startVideo(){
+  if(!vidReady){
+    // Retry once video is ready
+    VID.addEventListener('canplaythrough',()=>VID.play().catch(()=>{}),{once:true});
+  } else {
+    VID.currentTime=0; VID.play().catch(()=>{});
+  }
+}
 
 // ── AUDIO ─────────────────────────────────────────────────────────
 let AC=null;
@@ -435,7 +497,7 @@ function applyWild(c,forP){
 }
 
 // ── GAME STATE ────────────────────────────────────────────────────
-let G={phase:'menu',deck:[],pHand:[],oHand:[],pLives:3,oLives:3,pShield:false,oShield:false,pState:'idle',pStateF:0,oState:'idle',oStateF:0,stuckP:[],stuckO:[],oppTimer:0,msg:'',msgT:0,frame:0,hBtn:null,wildFlash:null};
+let G={phase:'intro',vidStarted:false,deck:[],pHand:[],oHand:[],pLives:3,oLives:3,pShield:false,oShield:false,pState:'idle',pStateF:0,oState:'idle',oStateF:0,stuckP:[],stuckO:[],oppTimer:0,msg:'',msgT:0,frame:0,hBtn:null,wildFlash:null};
 function setMsg(m,t=130){G.msg=m;G.msgT=t;}
 
 function initRound(){
@@ -567,10 +629,38 @@ function getBtns(){
   return[{id:'draw',label:'DRAW',x:LW/2-58,y:LH-12,w:50,h:12,col:'#3d0077'},{id:'stand',label:'STAND',x:LW/2+8,y:LH-12,w:50,h:12,col:'#550022'}];
 }
 function btnAt(mx,my){
+  if(G.phase==='intro'   &&mx>=LW-68&&mx<LW-6&&my>=LH-14&&my<LH-2)return'skip';
   if(G.phase==='menu'    &&mx>=LW/2-55&&mx<LW/2+55&&my>=210&&my<224)return'start';
   if(G.phase==='gameover'&&mx>=LW/2-55&&mx<LW/2+55&&my>=210&&my<224)return'restart';
   for(const b of getBtns())if(mx>=b.x&&mx<b.x+b.w&&my>=b.y&&my<b.y+b.h)return b.id;
   return null;
+}
+
+// ── INTRO CUTSCENE ────────────────────────────────────────────────
+function drawIntro(){
+  ctx.fillStyle='#06000e';ctx.fillRect(0,0,LW,LH);
+  // Video at 320×180 centered on canvas, pixel art upscaled
+  const vx=80,vy=35,vw=320,vh=180;
+  const got=renderVidPixel(vx,vy,vw,vh);
+  if(!got){
+    ctx.fillStyle='#1a003a';ctx.fillRect(vx,vy,vw,vh);
+    pbord(vx,vy,vw,vh,'#5500aa');
+    ptc('SUMMONING EROS...',LW/2,LH/2,'#aa44ff',1);
+  } else {
+    // CRT scanline overlay for extra pixel vibe
+    ctx.fillStyle='rgba(0,0,0,0.22)';
+    for(let sy=vy;sy<vy+vh;sy+=2)ctx.fillRect(vx,sy,vw,1);
+    pbord(vx,vy,vw,vh,'#ffd700');
+  }
+  // Title bar
+  fillR(0,0,LW,26,'#06000e');
+  ptc("CUPID'S 21",LW/2,6,'#ff88cc',2);
+  ptc('BioCraftEd Jam 2026',LW/2,20,'#5500aa',1);
+  // Skip button
+  pbtn('SKIP >>',LW-68,LH-14,62,12,G.hBtn==='skip','#3d0077');
+  // "click to start" when not yet playing
+  if(!G.vidStarted) ptc('CLICK ANYWHERE TO PLAY',LW/2,LH-10,'#ffd700',1);
+  drawPts();drawFlt();
 }
 
 // ── MENU ─────────────────────────────────────────────────────────
@@ -616,6 +706,10 @@ C.addEventListener('click',e=>{
   const r=C.getBoundingClientRect(),s=C._s||1;
   const mx=(e.clientX-r.left)/s,my=(e.clientY-r.top)/s;
   const b=btnAt(mx,my);
+  if(G.phase==='intro'){
+    if(b==='skip'){VID.pause();VID.currentTime=99;G.phase='menu';}
+    else if(!G.vidStarted){G.vidStarted=true;startVideo();}
+  }
   if(G.phase==='menu')    {if(b==='start')  newGame();}
   if(G.phase==='gameover'){if(b==='restart')G.phase='menu';}
   if(b==='draw') actDraw();
@@ -640,6 +734,7 @@ function loop(){
   if(G.pState==='win' &&G.pStateF>55){G.pState='idle';G.pStateF=0;}
   if(G.oState==='win' &&G.oStateF>55){G.oState='idle';G.oStateF=0;}
   if(G.phase==='opp')oppTick();
+  if(G.phase==='intro')  {drawIntro();  return;}
   if(G.phase==='menu')   {drawMenu();   return;}
   if(G.phase==='gameover'){drawGameOver();return;}
 

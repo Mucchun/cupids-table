@@ -12,6 +12,9 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer}
 <body>
 <canvas id="c"></canvas>
 <video id="v" src="eros.mp4" playsinline preload="auto" style="display:none"></video>
+<img id="ea" src="eros-angry.png" style="display:none">
+<img id="ew" src="eros-win.png"  style="display:none">
+<img id="ei" src="eros-idle.png" style="display:none">
 <script>
 // CUPID'S 21 — POV edition — BioCraftEd Jam 2026
 const C=document.getElementById('c'),ctx=C.getContext('2d');
@@ -82,6 +85,36 @@ function startVideo(){
   }
 }
 
+// ── EROS PORTRAIT SPRITES (3 stills → palette-baked offscreen canvases) ──
+// All canvases: 60×38 px (source is 1280×720, ≈16:9 → displayed at 220×138 = ~3.7× up)
+const EROS_A=document.createElement('canvas');EROS_A.width=60;EROS_A.height=38;
+const EROS_W=document.createElement('canvas');EROS_W.width=60;EROS_W.height=38;
+const EROS_I=document.createElement('canvas');EROS_I.width=60;EROS_I.height=38;
+const EROS_AC=EROS_A.getContext('2d',{willReadFrequently:true});
+const EROS_WC=EROS_W.getContext('2d',{willReadFrequently:true});
+const EROS_IC=EROS_I.getContext('2d',{willReadFrequently:true});
+let erosA=false,erosW=false,erosId=false;
+function bakeImg(srcEl,oc,occ,setFlag){
+  if(!srcEl.naturalWidth)return;
+  occ.drawImage(srcEl,0,0,60,38);
+  const id=occ.getImageData(0,0,60,38),d=id.data;
+  for(let i=0;i<d.length;i+=4){const[r,g,b]=nearP(d[i],d[i+1],d[i+2]);d[i]=r;d[i+1]=g;d[i+2]=b;}
+  occ.putImageData(id,0,0);setFlag();
+}
+const EA_EL=document.getElementById('ea');
+const EW_EL=document.getElementById('ew');
+const EI_EL=document.getElementById('ei');
+EA_EL.addEventListener('load',()=>bakeImg(EA_EL,EROS_A,EROS_AC,()=>{erosA=true;}));
+EW_EL.addEventListener('load',()=>bakeImg(EW_EL,EROS_W,EROS_WC,()=>{erosW=true;}));
+EI_EL.addEventListener('load',()=>bakeImg(EI_EL,EROS_I,EROS_IC,()=>{erosId=true;}));
+if(EA_EL.complete)bakeImg(EA_EL,EROS_A,EROS_AC,()=>{erosA=true;});
+if(EW_EL.complete)bakeImg(EW_EL,EROS_W,EROS_WC,()=>{erosW=true;});
+if(EI_EL.complete)bakeImg(EI_EL,EROS_I,EROS_IC,()=>{erosId=true;});
+
+function blitEros(oc,dx,dy,dw,dh){
+  ctx.imageSmoothingEnabled=false;ctx.drawImage(oc,dx,dy,dw,dh);ctx.imageSmoothingEnabled=false;
+}
+
 // ── AUDIO ─────────────────────────────────────────────────────────
 let AC=null;
 function initAC(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
@@ -134,115 +167,97 @@ function lc(c){const m={'#3d0077':'#5500bb','#550022':'#880033','#005533':'#0088
 
 // ── BIG EROS POV SPRITE ───────────────────────────────────────────
 function drawEros(st,sf){
-  // st: idle|draw|hit|win|think   sf: state frame
   const cx=240;
-  const bob=(st==='idle'||st==='think')?Math.round(Math.sin(G.frame*.055)*2):0;
-  const recoil=st==='hit'?-Math.min(sf*.6,10)|0:0;
+  // Y offsets per state
+  const bob=(st==='idle'||st==='think'||st==='draw')?Math.round(Math.sin(G.frame*.055)*2):0;
+  const recoil=st==='hit'?-(Math.min(sf*.6,10)|0):0;
   const lean=st==='win'?Math.max(0,5-sf*.12)|0:0;
   const oy=bob+recoil+lean;
-  // head center: (240, 68+oy)
-  const hy=68+oy;
 
-  // ── WINGS (drawn first, behind) ──
-  fillR(cx-106,hy-8, 40,4,'#bbbbdd');fillR(cx-112,hy-4,48,5,'#bbbbdd');
-  fillR(cx-114,hy+1, 52,6,'#bbbbdd');fillR(cx-110,hy+8, 44,4,'#bbbbdd');
-  fillR(cx-100,hy+14,32,3,'#bbbbdd');fillR(cx-86, hy+18,18,2,'#bbbbdd');
-  fillR(cx+66, hy-8, 40,4,'#bbbbdd');fillR(cx+64, hy-4, 48,5,'#bbbbdd');
-  fillR(cx+62, hy+1, 52,6,'#bbbbdd');fillR(cx+66, hy+8, 44,4,'#bbbbdd');
-  fillR(cx+68, hy+14,32,3,'#bbbbdd');fillR(cx+68, hy+18,18,2,'#bbbbdd');
-  fillR(cx-94, hy-2, 22,10,'#9999bb');fillR(cx+72, hy-2, 22,10,'#9999bb');
+  // Portrait zone: 220×138 centered, top of canvas
+  const epx=cx-110, epw=220, eph=138;
 
-  // ── HALO ──
-  fillR(cx-24,hy-46,48,3,'#ffd700');fillR(cx-28,hy-44,56,2,'#ffd700');
-  fillR(cx-28,hy-44,4,7,'#ffd700');fillR(cx+24,hy-44,4,7,'#ffd700');
-  fillR(cx-20,hy-45,40,1,'#ffff99');
+  // ── WINGS behind portrait ──
+  const wy=20+oy;
+  fillR(cx-106,wy, 40,4,'#bbbbdd');fillR(cx-112,wy+4,48,5,'#bbbbdd');
+  fillR(cx-114,wy+9,52,6,'#bbbbdd');fillR(cx-110,wy+16,44,4,'#bbbbdd');
+  fillR(cx-100,wy+22,32,3,'#bbbbdd');fillR(cx-86,wy+26,18,2,'#bbbbdd');
+  fillR(cx+66,wy,40,4,'#bbbbdd');fillR(cx+64,wy+4,48,5,'#bbbbdd');
+  fillR(cx+62,wy+9,52,6,'#bbbbdd');fillR(cx+66,wy+16,44,4,'#bbbbdd');
+  fillR(cx+68,wy+22,32,3,'#bbbbdd');fillR(cx+68,wy+26,18,2,'#bbbbdd');
+  fillR(cx-94,wy+6,22,10,'#9999bb');fillR(cx+72,wy+6,22,10,'#9999bb');
 
-  // ── HAIR ──
-  fillR(cx-24,hy-40,48,10,'#1a0800');fillR(cx-28,hy-36,6,14,'#1a0800');fillR(cx+22,hy-36,6,14,'#1a0800');
-  fillR(cx-24,hy-40,14,5,'#2a1000');fillR(cx+10,hy-40,14,5,'#2a1000');
+  if(st==='hit'){
+    // ── ANGRY: hard shake + rage aura ──
+    const shk=Math.round(Math.sin(G.frame*1.6)*5);
+    const pulse=(Math.abs(Math.sin(G.frame*.28))*6)|0;
+    // Red/orange expanding rings
+    for(let r=0;r<4;r++){
+      const exp=pulse+r*5,a=.45-r*.08;
+      ctx.strokeStyle=`rgba(255,${r*35},0,${a})`;ctx.lineWidth=2;
+      ctx.strokeRect(epx-exp+shk,oy-exp,epw+exp*2,eph+exp*2);
+    }
+    if(erosA){blitEros(EROS_A,epx+shk,oy,epw,eph);}
+    else{fillR(epx,0,epw,eph,'#2a0000');}
+    // Flash overlay
+    if(G.frame%8<4){ctx.fillStyle='rgba(255,0,0,.2)';ctx.fillRect(epx+shk,oy,epw,eph);}
+    // Scanlines
+    ctx.fillStyle='rgba(0,0,0,.22)';
+    for(let sy=oy;sy<oy+eph;sy+=2)ctx.fillRect(epx+shk,sy,epw,1);
 
-  // ── HEAD ──
-  fillR(cx-24,hy-30,48,52,'#c88050');
-  fillR(cx-24,hy+18,48,4,'#a86030'); // jaw shadow
+  } else if(st==='win'){
+    // ── WIN: bounce + laugh + gold aura + zoom pulse ──
+    const bounce=Math.round(Math.sin(G.frame*.18)*5);
+    const grow=(Math.abs(Math.sin(G.frame*.13))*5)|0;
+    const ga=.3+Math.abs(Math.sin(G.frame*.3))*.45;
+    // Gold double-border
+    ctx.strokeStyle=`rgba(255,215,0,${ga})`;ctx.lineWidth=2;
+    ctx.strokeRect(epx-3,oy-3+bounce,epw+6,eph+6);
+    ctx.strokeStyle=`rgba(255,215,0,${ga*.5})`;ctx.lineWidth=1;
+    ctx.strokeRect(epx-7,oy-7+bounce,epw+14,eph+14);
+    if(erosW){blitEros(EROS_W,epx-(grow/2|0),oy+bounce-(grow/2|0),epw+grow,eph+grow);}
+    else{fillR(epx,0,epw,eph,'#1a0800');}
+    // Gold shimmer sweep
+    const sh=(G.frame%30)/30;
+    ctx.fillStyle=`rgba(255,215,0,${sh*.08})`;ctx.fillRect(epx,oy+bounce,epw,eph);
+    // Scanlines
+    ctx.fillStyle='rgba(0,0,0,.2)';
+    for(let sy=oy+bounce;sy<oy+bounce+eph;sy+=2)ctx.fillRect(epx,sy,epw,1);
+    ptc('HA  HA  HA',cx,140,'#ffd700',1);
 
-  // ── POINTED EARS ──
-  fillR(cx-30,hy-14,6,8,'#c88050');fillR(cx-32,hy-12,3,4,'#a86030');
-  fillR(cx+24,hy-14,6,8,'#c88050');fillR(cx+29,hy-12,3,4,'#a86030');
-
-  // ── EYEBROWS (always menacing) ──
-  fillR(cx-22,hy-20,18,3,'#0a0300');fillR(cx+4,hy-20,18,3,'#0a0300');
-  fillR(cx-22,hy-20,5,2,'#1a0800');fillR(cx+17,hy-20,5,2,'#1a0800');
-
-  // ── EYES ──
-  const blink=G.frame%150>143;
-  if(!blink){
-    fillR(cx-20,hy-16,16,10,'#880011');fillR(cx+4,hy-16,16,10,'#880011');
-    fillR(cx-20,hy-16,16,5,'#cc1133'); fillR(cx+4,hy-16,16,5,'#cc1133');
-    fillR(cx-19,hy-15,5,3,'#ffffff'); fillR(cx+5,hy-15,5,3,'#ffffff');
-    fillR(cx-14,hy-14,6,6,'#000022'); fillR(cx+8,hy-14,6,6,'#000022');
-    if(st==='win'){fillR(cx-20,hy-16,16,10,'#cc1133');fillR(cx+4,hy-16,16,10,'#cc1133');}
   } else {
-    fillR(cx-20,hy-13,16,4,'#c88050');fillR(cx+4,hy-13,16,4,'#c88050');
-    fillR(cx-20,hy-13,16,2,'#1a0800');fillR(cx+4,hy-13,16,2,'#1a0800');
+    // ── IDLE / DRAW / THINK: staring face, slow bob ──
+    if(erosId){
+      // Subtle breathing scale
+      const breathe=(Math.sin(G.frame*.04)*.5+.5);
+      const grow=(breathe*3)|0;
+      blitEros(EROS_I,epx-(grow/2|0),oy-(grow/2|0),epw+grow,eph+grow);
+      // Very faint vignette
+      ctx.fillStyle='rgba(0,0,0,.15)';
+      for(let sy=oy;sy<oy+eph;sy+=2)ctx.fillRect(epx,sy,epw,1);
+      // Slow eye-glint: every ~4 seconds a white pixel flashes
+      if(G.frame%240>235){
+        fillR(cx-8,oy+22,3,2,'#ffffff');
+        fillR(cx+5,oy+22,3,2,'#ffffff');
+      }
+    } else {
+      fillR(epx,0,epw,eph,'#0a001a');
+    }
+    if(st==='think'){
+      const dots='.'.repeat(1+(G.frame/20|0)%3+1);
+      ptc(dots,cx,140,'#ff88cc',1);
+    }
   }
 
-  // ── NOSE ──
-  fillR(cx-4,hy-2,8,8,'#a86030');fillR(cx-6,hy+4,12,4,'#a86030');
-
-  // ── MOUTH ──
-  if(st==='win'){
-    fillR(cx-14,hy+12,28,5,'#882233');fillR(cx-12,hy+10,24,3,'#882233');
-    fillR(cx-10,hy+13,8,4,'#ffffff');fillR(cx+2,hy+13,8,4,'#ffffff'); // teeth
-  } else if(st==='hit'){
-    fillR(cx-12,hy+12,24,6,'#882233');fillR(cx-10,hy+13,20,5,'#440011');
-  } else if(st==='think'){
-    fillR(cx-4,hy+13,18,3,'#882233'); // smirk
-  } else {
-    fillR(cx-12,hy+13,24,3,'#882233');
-  }
-
-  // ── NECK ──
-  fillR(cx-10,hy+22,20,14,'#c88050');
-
-  // ── SHOULDERS + BODY ──
-  fillR(cx-54,hy+32,108,72,'#cc2233');
-  fillR(cx-54,hy+32,8,72,'#991122');fillR(cx+46,hy+32,8,72,'#991122');
-  fillR(cx-16,hy+32,32,6,'#ee3344'); // collar
-  fillR(cx-54,hy+50,108,3,'#ffd700'); // gold band
-  fillR(cx-54,hy+51,108,2,'#aa8800');
-  fillR(cx-54,hy+62,108,42,'#aa1122'); // lower body
-
-  // ── ARMS resting on table ──
-  fillR(cx-80,hy+68,30,12,'#c88050'); fillR(cx-88,hy+66,16,16,'#c88050'); // left arm+hand
-  fillR(cx+50,hy+68,30,12,'#c88050'); fillR(cx+72,hy+66,16,16,'#c88050'); // right arm+hand
-  fillR(cx-88,hy+66,16,5,'#aa8800'); fillR(cx+72,hy+66,16,5,'#aa8800'); // bracers
-
-  // ── BOW (visible on left side) ──
-  fillR(cx-100,hy+24,4,52,'#885522');
-  fillR(cx-98, hy+26,2,48,'#ccaa55');
-  // nocked arrow
-  if(st!=='draw'){
-    fillR(cx-98,hy+48,16,2,'#ccaa55');
-    fillR(cx-84, hy+46,4,4,'#aaaaaa');
-    fillR(cx-100,hy+46,4,6,'#ff3355');
-  }
-
-  // ── DRAW ARM (reaches toward deck) ──
-  if(st==='draw'){
-    const reach=Math.min(sf*2,28)|0;
-    fillR(cx-14,hy+70,28,10,'#c88050');
-    fillR(cx-10,hy+65,20,14,'#c88050');
-  }
-
-  // ── HIT FLASH ──
-  if(st==='hit'&&sf%4<2){
-    ctx.fillStyle='rgba(255,50,50,.38)';ctx.fillRect(cx-120,hy-50,240,150);
-  }
-
-  // ── THINKING DOTS ──
-  if(st==='think'){
-    const d='.'.repeat(1+(G.frame/20|0)%3+1);
-    ptc(d,cx,hy+90,'#ff88cc',1);
+  // ── HALO (always on top of portrait) ──
+  const haloY=oy-2;
+  fillR(cx-24,haloY,48,3,'#ffd700');fillR(cx-28,haloY+2,56,2,'#ffd700');
+  fillR(cx-28,haloY+2,4,7,'#ffd700');fillR(cx+24,haloY+2,4,7,'#ffd700');
+  fillR(cx-20,haloY+1,40,1,'#ffff99');
+  // Halo shimmer
+  if(G.frame%60<8){
+    ctx.fillStyle='rgba(255,255,180,.35)';
+    ctx.fillRect(cx-28,haloY,56,9);
   }
 }
 

@@ -93,16 +93,18 @@ const EA_EL=document.getElementById('ea');
 const EW_EL=document.getElementById('ew');
 const EI_EL=document.getElementById('ei');
 // Tiny staging canvas used only for the downscale step
-const PSTAGE=document.createElement('canvas');PSTAGE.width=55;PSTAGE.height=35;
+// Staging canvas: 80×27 → upscaled 6× to ~480×162 = chunky 6px blocks
+const PSTAGE=document.createElement('canvas');PSTAGE.width=80;PSTAGE.height=27;
 const PSTC=PSTAGE.getContext('2d');
 
 function blitEros(imgEl,dx,dy,dw,dh){
-  // Draw hi-res image → 55×35 (smooth downscale), then blow up with pixelation
+  const sw=imgEl.naturalWidth||1280, sh=imgEl.naturalHeight||720;
   PSTC.imageSmoothingEnabled=true;
-  PSTC.clearRect(0,0,55,35);
-  PSTC.drawImage(imgEl,0,0,55,35);
+  PSTC.clearRect(0,0,80,27);
+  // Centered crop: trim 10% from each side horizontally to focus on face
+  PSTC.drawImage(imgEl, sw*0.1, 0, sw*0.8, sh, 0, 0, 80, 27);
   ctx.imageSmoothingEnabled=false;
-  ctx.drawImage(PSTAGE,dx,dy,dw,dh);
+  ctx.drawImage(PSTAGE, dx, dy, dw, dh);
   ctx.imageSmoothingEnabled=false;
 }
 
@@ -159,96 +161,61 @@ function lc(c){const m={'#3d0077':'#5500bb','#550022':'#880033','#005533':'#0088
 // ── BIG EROS POV SPRITE ───────────────────────────────────────────
 function drawEros(st,sf){
   const cx=240;
-  // Y offsets per state
   const bob=(st==='idle'||st==='think'||st==='draw')?Math.round(Math.sin(G.frame*.055)*2):0;
   const recoil=st==='hit'?-(Math.min(sf*.6,10)|0):0;
   const lean=st==='win'?Math.max(0,5-sf*.12)|0:0;
   const oy=bob+recoil+lean;
-
-  // Portrait zone: 220×138 centered, top of canvas
-  const epx=cx-110, epw=220, eph=138;
-
-  // ── WINGS behind portrait ──
-  const wy=20+oy;
-  fillR(cx-106,wy, 40,4,'#bbbbdd');fillR(cx-112,wy+4,48,5,'#bbbbdd');
-  fillR(cx-114,wy+9,52,6,'#bbbbdd');fillR(cx-110,wy+16,44,4,'#bbbbdd');
-  fillR(cx-100,wy+22,32,3,'#bbbbdd');fillR(cx-86,wy+26,18,2,'#bbbbdd');
-  fillR(cx+66,wy,40,4,'#bbbbdd');fillR(cx+64,wy+4,48,5,'#bbbbdd');
-  fillR(cx+62,wy+9,52,6,'#bbbbdd');fillR(cx+66,wy+16,44,4,'#bbbbdd');
-  fillR(cx+68,wy+22,32,3,'#bbbbdd');fillR(cx+68,wy+26,18,2,'#bbbbdd');
-  fillR(cx-94,wy+6,22,10,'#9999bb');fillR(cx+72,wy+6,22,10,'#9999bb');
+  const EPH=TY+2; // portrait fills canvas to table edge
 
   if(st==='hit'){
-    // ── ANGRY: hard shake + rage aura ──
     const shk=Math.round(Math.sin(G.frame*1.6)*5);
-    const pulse=(Math.abs(Math.sin(G.frame*.28))*6)|0;
-    // Red/orange expanding rings
+    const pulse=(Math.abs(Math.sin(G.frame*.28))*8)|0;
+    // Full-width rage aura rings
     for(let r=0;r<4;r++){
-      const exp=pulse+r*5,a=.45-r*.08;
-      ctx.strokeStyle=`rgba(255,${r*35},0,${a})`;ctx.lineWidth=2;
-      ctx.strokeRect(epx-exp+shk,oy-exp,epw+exp*2,eph+exp*2);
+      const exp=pulse+r*6,a=.5-r*.1;
+      ctx.strokeStyle=`rgba(255,${r*30},0,${a})`;ctx.lineWidth=3;
+      ctx.strokeRect(-exp+shk,oy-exp,LW+exp*2,EPH+exp*2);
     }
-    if(EA_EL.naturalWidth){blitEros(EA_EL,epx+shk,oy,epw,eph);}
-    else{fillR(epx,oy,epw,eph,'#3a0010');pbord(epx,oy,epw,eph,'#ff3300');}
-    // Flash overlay
-    if(G.frame%8<4){ctx.fillStyle='rgba(255,0,0,.2)';ctx.fillRect(epx+shk,oy,epw,eph);}
-    // Scanlines
-    ctx.fillStyle='rgba(0,0,0,.22)';
-    for(let sy=oy;sy<oy+eph;sy+=2)ctx.fillRect(epx+shk,sy,epw,1);
+    if(EA_EL.naturalWidth){blitEros(EA_EL,shk,oy,LW,EPH);}
+    else{fillR(0,oy,LW,EPH,'#2a0000');}
+    if(G.frame%8<4){ctx.fillStyle='rgba(220,0,0,.18)';ctx.fillRect(shk,oy,LW,EPH);}
+    ctx.fillStyle='rgba(0,0,0,.2)';
+    for(let sy=oy;sy<oy+EPH;sy+=2)ctx.fillRect(shk,sy,LW,1);
 
   } else if(st==='win'){
-    // ── WIN: bounce + laugh + gold aura + zoom pulse ──
-    const bounce=Math.round(Math.sin(G.frame*.18)*5);
-    const grow=(Math.abs(Math.sin(G.frame*.13))*5)|0;
-    const ga=.3+Math.abs(Math.sin(G.frame*.3))*.45;
-    // Gold double-border
-    ctx.strokeStyle=`rgba(255,215,0,${ga})`;ctx.lineWidth=2;
-    ctx.strokeRect(epx-3,oy-3+bounce,epw+6,eph+6);
-    ctx.strokeStyle=`rgba(255,215,0,${ga*.5})`;ctx.lineWidth=1;
-    ctx.strokeRect(epx-7,oy-7+bounce,epw+14,eph+14);
-    if(EW_EL.naturalWidth){blitEros(EW_EL,epx-(grow/2|0),oy+bounce-(grow/2|0),epw+grow,eph+grow);}
-    else{fillR(epx,oy+bounce,epw,eph,'#1a0800');pbord(epx,oy+bounce,epw,eph,'#ffd700');}
-    // Gold shimmer sweep
+    const bounce=Math.round(Math.sin(G.frame*.18)*4);
+    const grow=(Math.abs(Math.sin(G.frame*.13))*6)|0;
+    const ga=.3+Math.abs(Math.sin(G.frame*.3))*.5;
+    ctx.strokeStyle=`rgba(255,215,0,${ga})`;ctx.lineWidth=3;
+    ctx.strokeRect(-4,oy-4+bounce,LW+8,EPH+8);
+    if(EW_EL.naturalWidth){blitEros(EW_EL,-(grow/2|0),oy+bounce-(grow/2|0),LW+grow,EPH+grow);}
+    else{fillR(0,oy,LW,EPH,'#1a0800');}
     const sh=(G.frame%30)/30;
-    ctx.fillStyle=`rgba(255,215,0,${sh*.08})`;ctx.fillRect(epx,oy+bounce,epw,eph);
-    // Scanlines
-    ctx.fillStyle='rgba(0,0,0,.2)';
-    for(let sy=oy+bounce;sy<oy+bounce+eph;sy+=2)ctx.fillRect(epx,sy,epw,1);
-    ptc('HA  HA  HA',cx,140,'#ffd700',1);
+    ctx.fillStyle=`rgba(255,200,0,${sh*.07})`;ctx.fillRect(0,oy+bounce,LW,EPH);
+    ctx.fillStyle='rgba(0,0,0,.18)';
+    for(let sy=oy+bounce;sy<oy+bounce+EPH;sy+=2)ctx.fillRect(0,sy,LW,1);
+    ptc('HA  HA  HA',cx,TY-12,'#ffd700',1);
 
   } else {
-    // ── IDLE / DRAW / THINK: staring face, slow bob ──
     if(EI_EL.naturalWidth){
-      // Subtle breathing scale
-      const breathe=(Math.sin(G.frame*.04)*.5+.5);
-      const grow=(breathe*3)|0;
-      blitEros(EI_EL,epx-(grow/2|0),oy-(grow/2|0),epw+grow,eph+grow);
-      // Very faint vignette
-      ctx.fillStyle='rgba(0,0,0,.15)';
-      for(let sy=oy;sy<oy+eph;sy+=2)ctx.fillRect(epx,sy,epw,1);
-      // Slow eye-glint: every ~4 seconds a white pixel flashes
-      if(G.frame%240>235){
-        fillR(cx-8,oy+22,3,2,'#ffffff');
-        fillR(cx+5,oy+22,3,2,'#ffffff');
-      }
+      const breathe=Math.sin(G.frame*.04)*.5+.5;
+      const grow=(breathe*4)|0;
+      blitEros(EI_EL,-(grow/2|0),oy-(grow/2|0),LW+grow,EPH+grow);
+      ctx.fillStyle='rgba(0,0,0,.12)';
+      for(let sy=oy;sy<oy+EPH;sy+=2)ctx.fillRect(0,sy,LW,1);
     } else {
-      fillR(epx,oy,epw,eph,'#120030');pbord(epx,oy,epw,eph,'#5500aa');
+      fillR(0,oy,LW,EPH,'#120020');
     }
     if(st==='think'){
       const dots='.'.repeat(1+(G.frame/20|0)%3+1);
-      ptc(dots,cx,140,'#ff88cc',1);
+      ptc(dots,cx,TY-12,'#ff88cc',1);
     }
   }
 
-  // ── HALO (always on top of portrait) ──
-  const haloY=oy-2;
-  fillR(cx-24,haloY,48,3,'#ffd700');fillR(cx-28,haloY+2,56,2,'#ffd700');
-  fillR(cx-28,haloY+2,4,7,'#ffd700');fillR(cx+24,haloY+2,4,7,'#ffd700');
-  fillR(cx-20,haloY+1,40,1,'#ffff99');
-  // Halo shimmer
-  if(G.frame%60<8){
-    ctx.fillStyle='rgba(255,255,180,.35)';
-    ctx.fillRect(cx-28,haloY,56,9);
+  // Dark fade at bottom of portrait to blend into table
+  for(let i=0;i<28;i++){
+    ctx.fillStyle=`rgba(0,0,0,${(i/28)*.85})`;
+    ctx.fillRect(0,EPH-28+i,LW,1);
   }
 }
 
@@ -256,41 +223,63 @@ function drawEros(st,sf){
 // v: 1=A 2-10 11=J 12=Q 13=K  wilds: 14=+5CURSE 15=SWAP 16=SHIELD 17=STEAL 18=PEEK
 const WNAME={14:'+5',15:'SWAP',16:'SHLD',17:'STEAL',18:'PEEK'};
 const WCOL={14:'#ff4444',15:'#44aaff',16:'#44ff88',17:'#ffaa44',18:'#ff44ff'};
-const SCOL=['#ff4477','#334499','#ff4477','#334499'];
+const SCOL=['#cc1133','#cc1133','#223399','#115522']; // ♥red ♦red ♠navy ♣green
 
 function cval(c){if(c.wild)return 0;if(c.v>=11)return 10;return c.v;}
 function clabel(c){if(c.wild)return WNAME[c.v];if(c.v===1)return'A';if(c.v===11)return'J';if(c.v===12)return'Q';if(c.v===13)return'K';return''+c.v;}
 
-// Small card (Eros side, perspective-distant)
-const SCW=15,SCH=21;
-function drawSmCard(x,y,c,face=false){
-  if(!face){
-    fillR(x,y,SCW,SCH,'#1a0035');fillR(x+1,y+1,SCW-2,SCH-2,'#2d0055');
-    pbord(x,y,SCW,SCH,'#5500aa');
-    fillR(x+4,y+5,3,1,'#440088');fillR(x+5,y+4,1,3,'#440088');
-    return;
-  }
-  const wld=c.wild,col=wld?WCOL[c.v]:SCOL[c.suit]||'#334499';
-  fillR(x,y,SCW,SCH,wld?'#120022':'#e8d4ff');pbord(x,y,SCW,SCH,wld?col:'#8800cc');
-  const lbl=clabel(c);
-  if(wld){ptc(WNAME[c.v],x+SCW/2,y+4,col,1);ptc('WLD',x+SCW/2,y+12,col,1);}
-  else{pt(lbl,x+2,y+2,col,1);ptc(lbl,x+SCW/2,y+SCH/2-4,col,lbl.length>1?1:1);}
+// Pixel suit symbols 5×5
+const SUITPX={0:[0b01010,0b11111,0b11111,0b01110,0b00100],1:[0b00100,0b01110,0b11111,0b01110,0b00100],2:[0b00100,0b01110,0b11111,0b00100,0b01110],3:[0b01110,0b11111,0b01110,0b00100,0b01110]};
+function drawSuit(sx,sy,suit,col,sc=1){
+  ctx.fillStyle=col;
+  (SUITPX[suit%4]||SUITPX[0]).forEach((row,r)=>{for(let b=4;b>=0;b--){if(row&(1<<b))ctx.fillRect(sx+(4-b)*sc,sy+r*sc,sc,sc);}});
 }
 
-// Large card (player hand, close up)
-const LCW=26,LCH=38;
-function drawLgCard(x,y,c,hov=false){
-  const wld=c.wild,col=wld?WCOL[c.v]:SCOL[c.suit]||'#334499';
-  fillR(x,y,LCW,LCH,wld?'#180030':'#f0e4ff');pbord(x,y,LCW,LCH,wld?col:'#8800cc');
-  if(hov)pbord(x+1,y+1,LCW-2,LCH-2,'#ffaa00');
-  const lbl=clabel(c);
+// Small card — Eros side (22×30)
+const SCW=22,SCH=30;
+function drawSmCard(x,y,c,face=false){
+  if(!face){
+    fillR(x,y,SCW,SCH,'#14002c');pbord(x,y,SCW,SCH,'#7700cc');
+    fillR(x+2,y+2,SCW-4,SCH-4,'#1e0040');
+    for(let i=3;i<SCW-3;i+=4)fillR(x+i,y+3,1,SCH-6,'#330066');
+    fillR(x+SCW/2-3,y+SCH/2-3,6,6,'#4400aa');pbord(x+SCW/2-3,y+SCH/2-3,6,6,'#aa00ff');
+    return;
+  }
+  const wld=c.wild,suit=c.suit%4,col=wld?WCOL[c.v]:SCOL[suit];
   if(wld){
-    fillR(x+1,y+1,LCW-2,3,col);fillR(x+1,y+LCH-4,LCW-2,3,col);
-    ptc(WNAME[c.v],x+LCW/2,y+6,col,1);ptc('WILD',x+LCW/2,y+15,'#ffffff',1);ptc('!',x+LCW/2,y+24,col,1);
+    fillR(x,y,SCW,SCH,'#0c001a');pbord(x,y,SCW,SCH,col);
+    fillR(x+1,y+1,SCW-2,2,col);fillR(x+1,y+SCH-3,SCW-2,2,col);
+    ptc(WNAME[c.v],x+SCW/2,y+5,col,1);ptc('WLD',x+SCW/2,y+16,'#ddddff',1);
   } else {
-    pt(lbl,x+2,y+2,col,1);
-    ptc(lbl,x+LCW/2,y+LCH/2-5,col,lbl.length>1?1:2);
-    ctx.fillStyle=col;ctx.fillRect(x+LCW/2-1,y+LCH/2+6,3,2);
+    fillR(x,y,SCW,SCH,'#f2e8ff');pbord(x,y,SCW,SCH,col);
+    fillR(x+1,y+1,SCW-2,SCH-2,'#faf4ff');
+    pt(clabel(c),x+2,y+2,col,1);
+    drawSuit(x+SCW/2-4,y+SCH/2-3,suit,col,2);
+  }
+}
+
+// Large card — player hand (40×56)
+const LCW=40,LCH=56;
+function drawLgCard(x,y,c,hov=false){
+  const wld=c.wild,suit=c.suit%4,col=wld?WCOL[c.v]:SCOL[suit];
+  if(wld){
+    fillR(x,y,LCW,LCH,'#0c0020');pbord(x,y,LCW,LCH,col);
+    if(G.frame%14<7)pbord(x+1,y+1,LCW-2,LCH-2,col);
+    fillR(x+2,y+2,LCW-4,4,col);fillR(x+2,y+LCH-6,LCW-4,4,col);
+    ptc(WNAME[c.v],x+LCW/2,y+10,col,2);
+    ptc('WILD CARD',x+LCW/2,y+30,'#ffffff',1);
+  } else {
+    fillR(x,y,LCW,LCH,'#f0e6ff');pbord(x,y,LCW,LCH,col);
+    fillR(x+1,y+1,LCW-2,LCH-2,'#faf4ff');
+    if(hov){pbord(x+1,y+1,LCW-2,LCH-2,'#ffd700');}
+    // Thin inner frame
+    ctx.strokeStyle=col+'55';ctx.lineWidth=1;ctx.strokeRect(x+3,y+3,LCW-6,LCH-6);
+    const lbl=clabel(c);
+    pt(lbl,x+2,y+2,col,1); // top-left label
+    drawSuit(x+3,y+8,suit,col,1); // top-left suit
+    // Centre: large suit + big value
+    drawSuit(x+LCW/2-6,y+LCH/2-12,suit,col,3);
+    ptc(lbl,x+LCW/2,y+LCH/2+8,col,lbl.length>1?1:2);
   }
 }
 
@@ -319,8 +308,12 @@ function tickArrow(){
       snd('ugh');screenShake=20;spark(LW/2,LH/2,24,'#ff4444');spark(LW/2,LH/2,12,'#ffaa00');
       G.pState='hit';G.pStateF=0;G.stuckP.push({angle:(Math.random()-.5)*.4});
     } else {
-      snd('ugh');spark(240,110,20,'#ff4444');
-      G.oState='hit';G.oStateF=0;G.stuckO.push({x:220+Math.random()*40|0,y:80+Math.random()*20|0});
+      // Arrow hits Eros: flash + sparks, then disappear (no stuck arrow stays)
+      snd('ugh');
+      spark(LW/2,TY/2,28,'#ff4444');spark(LW/2,TY/2,14,'#ffaa00');spark(LW/2,TY/2,8,'#ffffff');
+      screenShake=12;
+      G.oState='hit';G.oStateF=0;
+      // No stuckO push — arrow vanishes on impact
     }
     setTimeout(()=>{
       if(G.pLives<=0||G.oLives<=0)G.phase='gameover';
@@ -351,7 +344,7 @@ function drawIncomingArrow(t){
 function drawOutgoingArrow(t){
   const ease=1-Math.pow(1-t,2);
   const sz=Math.round((1-ease)*60+4);
-  const x=LW/2, y=Math.round(230-ease*140);
+  const x=LW/2, y=Math.round(LH-30-ease*(LH-30-TY/2));
   ctx.save();ctx.translate(x,y);ctx.rotate(-0.05);
   ctx.fillStyle='#885522';ctx.fillRect(-sz/2|0,-2,sz,4);
   ctx.fillStyle='#aaaaaa';ctx.fillRect(sz/2|0,-3,5,5);
@@ -379,84 +372,48 @@ function drawStuckOnEros(){
 }
 
 // ── ROOM BACKGROUND ───────────────────────────────────────────────
-const STARS=[];for(let i=0;i<55;i++)STARS.push([Math.random()*480|0,Math.random()*138|0,Math.random()>.7?2:1,Math.random()]);
-const TWINK=[];for(let i=0;i<10;i++)TWINK.push([30+Math.random()*420|0,5+Math.random()*100|0]);
+const TY=155; // table far edge y
 
+// Pre-sampled edge colours from Eros photos (eyedropped dark warm scene bg)
+const BG_COLS=['#120800','#160a02','#1a0c02','#180b01','#140900','#0f0600','#0c0400'];
 function drawRoom(){
-  // BG
-  fillR(0,0,LW,LH,'#06000e');
+  // Fill with dark warm tone matching Eros's photo bg
+  fillR(0,0,LW,LH,'#120800');
 
-  // Stone walls — left and right columns
-  for(let y=0;y<138;y+=8){
-    const shade=(y/138*.3+.4);
-    const c=Math.round(shade*28);
-    ctx.fillStyle=`rgb(${c},${c-2},${c+4})`;
-    ctx.fillRect(0,y,72,8);ctx.fillRect(408,y,72,8);
-    if(y%16===0){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(0,y,72,1);ctx.fillRect(408,y,72,1);}
+  // Pixel art background texture — 6×6 blocks continuing the scene
+  for(let ty=0;ty<TY;ty+=6){
+    for(let tx=0;tx<LW;tx+=6){
+      const ci=(tx/6+ty/6)%BG_COLS.length;
+      const v=Math.round(Math.sin(tx*.07+ty*.05)*3);
+      ctx.fillStyle=BG_COLS[(ci+v+BG_COLS.length)%BG_COLS.length];
+      ctx.fillRect(tx,ty,6,6);
+    }
   }
-  // Mortar lines on stone
-  ctx.fillStyle='rgba(0,0,0,.35)';
-  for(let y=0;y<138;y+=16){ctx.fillRect(0,y,72,1);ctx.fillRect(408,y,72,1);}
-  for(let y=0;y<138;y+=16){ctx.fillRect(0,y+8,36,1);ctx.fillRect(36,y,36,1);ctx.fillRect(408,y+8,36,1);ctx.fillRect(444,y,36,1);}
+  // Dark warm vignette toward portrait center (so Eros stands out)
+  ctx.fillStyle='rgba(0,0,0,.45)';
+  ctx.fillRect(0,0,40,TY); ctx.fillRect(LW-40,0,40,TY);
+  ctx.fillStyle='rgba(0,0,0,.2)';
+  ctx.fillRect(0,0,LW,12); // top shadow
 
-  // Gothic arch window (centered behind Eros)
-  fillR(72,0,336,138,'#09001a'); // dark backdrop
-  // Window arch shape — draw the stone arch
-  ctx.fillStyle='#151030';
-  // Arch stones (border of window)
-  for(let i=0;i<14;i++){
-    const t=i/13,ax=72+t*336,thick=6;
-    ctx.fillRect(ax,0,thick,138);
-  }
-  // Actually just draw the window opening
-  fillR(80,0,320,130,'#06001a');
-  // Stars in window
-  STARS.forEach(([sx,sy,sz,br])=>{
-    if(sx<80||sx>400)return;
-    ctx.fillStyle=br>.55?'#ffffff':'#8866aa';ctx.fillRect(sx,sy,sz,sz);
-  });
-  TWINK.forEach(([tx,ty],i)=>{
-    if(tx<84||tx>396)return;
-    if(Math.sin(G.frame*.045+i*1.4)>.55){ctx.fillStyle='#ffffff';ctx.fillRect(tx-1,ty,1,1);ctx.fillRect(tx+1,ty,1,1);ctx.fillRect(tx,ty-1,1,1);ctx.fillRect(tx,ty+1,1,1);}
-  });
-  // Window frame
-  fillR(74,0,6,138,'#1e1840');fillR(400,0,6,138,'#1e1840');
-  fillR(80,128,320,10,'#1e1840');
-  // Vertical and horizontal bars
-  fillR(237,0,6,128,'#1e1840');fillR(80,60,320,5,'#1e1840');
-  // Window arch top (rounded)
-  fillR(78,0,4,80,'#151030');fillR(400,0,4,80,'#151030');
-
-  // Torches on walls
-  drawTorch(50,55);drawTorch(430,55);
-
-  // Ceiling edge
-  fillR(0,0,LW,3,'#0a0018');
-
-  // TABLE SURFACE (perspective trapezoid)
-  // Eros sits at y≈138 (where table edge is)
-  const TY=140; // table far edge y
+  // TABLE SURFACE — warm dark wood grain
   for(let y=TY;y<LH;y++){
     const t=(y-TY)/(LH-TY);
-    const x1=Math.round(100*(1-t));
-    const x2=Math.round(LW-100*(1-t));
-    ctx.fillStyle=y%2===0?'#1a0330':'#200440';
+    const x1=Math.round(80*(1-t)),x2=Math.round(LW-80*(1-t));
+    ctx.fillStyle=y%6===0?'#1e0e06':y%3===0?'#190b04':'#150904';
     ctx.fillRect(x1,y,x2-x1,1);
   }
-  // Table far edge (gold line)
-  fillR(0,TY,LW,2,'#5500aa');
-  fillR(2,TY,LW-4,1,'#ffd700');
-  // Near edge glow
-  fillR(0,LH-3,LW,3,'#3a0066');
-  // Side edge lines (perspective)
-  ctx.fillStyle='#5500aa';
-  for(let y=TY;y<LH;y++){
-    const t=(y-TY)/(LH-TY),x1=Math.round(100*(1-t)),x2=Math.round(LW-100*(1-t));
-    if(y%2===0){ctx.fillRect(x1,y,2,1);ctx.fillRect(x2-2,y,2,1);}
+  // Table far edge — warm gold glint
+  fillR(0,TY,LW,2,'#2a1000');
+  fillR(4,TY,LW-8,1,'#c89030');
+  fillR(8,TY,LW-16,1,'#ffd700');
+  ctx.fillStyle='rgba(255,180,50,.07)';ctx.fillRect(60,TY-6,360,8);
+  // Perspective edge lines
+  ctx.fillStyle='#1e0a00';
+  for(let y=TY+2;y<LH;y+=2){
+    const t=(y-TY)/(LH-TY),x1=Math.round(80*(1-t)),x2=Math.round(LW-80*(1-t));
+    ctx.fillRect(x1,y,2,1); ctx.fillRect(x2-2,y,2,1);
   }
-  // Center cloth ornament on table
-  fillR(LW/2-30,158,60,2,'#5500aa');fillR(LW/2-20,162,40,2,'#3a0066');
-  fillR(LW/2-2,TY+4,4,1,'#ffd700');fillR(LW/2-4,TY+6,8,1,'#ffd700');
+  fillR(0,LH-3,LW,3,'#1a0800');
 }
 
 function drawTorch(tx,ty){
@@ -573,27 +530,29 @@ function resolveRound(){
 function drawHands(){
   const reveal=G.phase==='resolve'||G.phase==='gameover';
 
-  // Eros cards (small, on far side of table, centered)
+  // Eros cards (small, on far side of table)
   const on=G.oHand.length;
-  const osx=LW/2-on*(SCW+2)/2;
-  G.oHand.forEach((c,i)=>drawSmCard(osx+i*(SCW+2),148,c,reveal&&!c.ghost));
+  const osx=LW/2-on*(SCW+3)/2;
+  G.oHand.forEach((c,i)=>drawSmCard(osx+i*(SCW+3),TY+4,c,reveal&&!c.ghost));
   if(reveal){
     const ot=total(G.oHand);
-    ptc(ot>21?'BUST!':'EROS: '+ot,LW/2,172,ot>21?'#ff4444':'#aa44ff',1);
-  } else {ptc('EROS: ???',LW/2,172,'#554466',1);}
+    ptc(ot>21?'BUST!':'EROS: '+ot,LW/2,TY+SCH+8,ot>21?'#ff4444':'#cc88ff',1);
+  } else {ptc('EROS: ???',LW/2,TY+SCH+8,'#554466',1);}
 
-  // Deck pile (center table, between both hands)
-  if(G.deck.length>1){drawSmCard(LW/2-SCW/2+2,184,null,false);}
-  if(G.deck.length>0){drawSmCard(LW/2-SCW/2,182,null,false);}
-  ptc(G.deck.length+'',LW/2,205,'#443355',1);
+  // Deck pile
+  const dy=TY+SCH/2+2;
+  if(G.deck.length>1){drawSmCard(LW/2-SCW/2+2,dy+1,null,false);}
+  if(G.deck.length>0){drawSmCard(LW/2-SCW/2,dy,null,false);}
+  ptc(G.deck.length+'',LW/2,dy+SCH+3,'#554466',1);
 
   // Player cards (large, close up, bottom)
   const pn=G.pHand.length;
   const psx=LW/2-pn*(LCW+3)/2;
-  G.pHand.forEach((c,i)=>!c.ghost&&drawLgCard(psx+i*(LCW+3),218,c));
+  const pcy=TY+SCH+16;
+  G.pHand.forEach((c,i)=>!c.ghost&&drawLgCard(psx+i*(LCW+3),pcy,c));
   const pt=total(G.pHand);
   const pc2=pt>21?'#ff4444':pt===21?'#ffd700':'#ff88cc';
-  ptc(pt>21?'BUST!':pt===21?'21! PERFECT!':'YOU: '+pt,LW/2,218+LCH+4,pc2,pt===21?2:1);
+  ptc(pt>21?'BUST!':pt===21?'21!':('YOU: '+pt),LW/2,pcy+LCH+3,pc2,pt===21?2:1);
 }
 
 // ── LIVES + HUD ───────────────────────────────────────────────────
@@ -610,10 +569,10 @@ function drawHUD(){
   for(let i=0;i<3;i++)heart(LW-38+i*12,9,i<G.pLives?'#ff4477':'#330011');
   if(G.pShield){fillR(LW-44,18,42,7,'#002200');pbord(LW-44,18,42,7,'#44ff88');ptc('SHLD',LW-23,19,'#44ff88',1);}
 
-  // Status bar (bottom)
-  fillR(0,LH-14,LW,14,'#06000e');pbord(0,LH-14,LW,14,'#330055');
-  const ph=G.phase==='player'?'YOUR TURN  --  DRAW OR STAND':G.phase==='opp'?'EROS IS THINKING...':G.phase==='resolve'?'ROUND OVER':'';
-  if(ph)ptc(ph,LW/2,LH-11,G.phase==='player'?'#ff88cc':'#aa44ff',1);
+  // Status bar (bottom) — no text, just buttons area
+  fillR(0,LH-14,LW,14,'#08000f');
+  if(G.phase==='opp')ptc('EROS IS THINKING...',LW/2,LH-11,'#aa44ff',1);
+  if(G.phase==='resolve')ptc('ROUND OVER',LW/2,LH-11,'#ffd700',1);
 
   // Message (center screen)
   if(G.msgT>0){
@@ -632,12 +591,12 @@ function drawHUD(){
 // ── BUTTONS ──────────────────────────────────────────────────────
 function getBtns(){
   if(G.phase!=='player')return[];
-  return[{id:'draw',label:'DRAW',x:LW/2-58,y:LH-12,w:50,h:12,col:'#3d0077'},{id:'stand',label:'STAND',x:LW/2+8,y:LH-12,w:50,h:12,col:'#550022'}];
+  return[{id:'draw',label:'DRAW',x:LW/2-62,y:LH-13,w:56,h:12,col:'#3d0077'},{id:'stand',label:'STAND',x:LW/2+6,y:LH-13,w:56,h:12,col:'#550022'}];
 }
 function btnAt(mx,my){
   if(G.phase==='intro'   &&mx>=LW-68&&mx<LW-6&&my>=LH-14&&my<LH-2)return'skip';
-  if(G.phase==='menu'    &&mx>=LW/2-55&&mx<LW/2+55&&my>=210&&my<224)return'start';
-  if(G.phase==='gameover'&&mx>=LW/2-55&&mx<LW/2+55&&my>=210&&my<224)return'restart';
+  if(G.phase==='menu'    &&mx>=LW/2-55&&mx<LW/2+55&&my>=TY+48&&my<TY+62)return'start';
+  if(G.phase==='gameover'&&mx>=LW/2-55&&mx<LW/2+55&&my>=TY+48&&my<TY+62)return'restart';
   for(const b of getBtns())if(mx>=b.x&&mx<b.x+b.w&&my>=b.y&&my<b.y+b.h)return b.id;
   return null;
 }
@@ -677,15 +636,13 @@ function drawMenu(){
   // Title overlay
   fillR(60,10,360,20,'#1a003a');pbord(60,10,360,20,'#ffd700');
   ptc("CUPID'S 21",LW/2,14,'#ff88cc',2);
-  // Rules panel (on table surface)
-  fillR(40,148,400,58,'#0a001e');pbord(40,148,400,58,'#5500aa');
-  ptc('SIT ACROSS EROS. CLOSEST TO 21 WINS',LW/2,152,'#ccaaff',1);
-  ptc('DRAW OR STAND EACH TURN',LW/2,160,'#aaaacc',1);
-  ptc('WILD CARDS:  +5 CURSE  SWAP  SHIELD',LW/2,170,'#ff88ff',1);
-  ptc('STEAL A CARD  PEEK AT EROS HAND',LW/2,178,'#ff88ff',1);
-  ptc('LOSE A ROUND = EROS FIRES AN ARROW AT YOU',LW/2,188,'#ff4477',1);
-  ptc('3 ARROWS = GAME OVER',LW/2,196,'#ff4477',1);
-  pbtn('> PLAY <',LW/2-55,212,110,13,G.hBtn==='start','#5500aa');
+  // Rules panel
+  fillR(20,TY+2,440,64,'#06000e');pbord(20,TY+2,440,64,'#5500aa');
+  ptc('CLOSEST TO 21 WINS — DRAW OR STAND',LW/2,TY+6,'#ccaaff',1);
+  ptc('WILD CARDS:  +5 CURSE  SWAP  SHIELD  STEAL  PEEK',LW/2,TY+16,'#ff88ff',1);
+  ptc('LOSE ROUND = EROS SHOOTS AN ARROW',LW/2,TY+26,'#ff4477',1);
+  ptc('3 ARROWS = GAME OVER',LW/2,TY+36,'#ff4477',1);
+  pbtn('> PLAY <',LW/2-55,TY+48,110,13,G.hBtn==='start','#5500aa');
   drawPts();drawFlt();
 }
 
@@ -697,12 +654,11 @@ function drawGameOver(){
   if(!won) drawStuckOnEros(); // shouldn't be here but just in case
   fillR(60,10,360,20,'#1a003a');pbord(60,10,360,20,won?'#ff4477':'#aa44ff');
   ptc(won?'YOU WIN!':'YOU DIED',LW/2,14,won?'#ff88cc':'#aa44ff',2);
-  fillR(40,155,400,54,'#0a001e');pbord(40,155,400,54,won?'#ff4477':'#aa44ff');
-  ptc(won?'EROS IS DEFEATED. LOVE PREVAILS.':'CUPID FELL. EROS LAUGHS.', LW/2,160,'#ffd700',1);
-  ptc(won?'ARROWS OF LOVE FOUND THEIR MARK':'YOUR HAND NEVER REACHED 21', LW/2,170,'#664488',1);
-  ptc('LIVES REMAINING: '+G.pLives+'/3',LW/2,182,'#ff4477',1);
-  ptc('ARROWS HIT: '+(3-G.pLives),LW/2,190,'#aa44ff',1);
-  pbtn('> PLAY AGAIN <',LW/2-55,212,110,13,G.hBtn==='restart','#5500aa');
+  fillR(20,TY+2,440,64,'#06000e');pbord(20,TY+2,440,64,won?'#ff4477':'#aa44ff');
+  ptc(won?'EROS IS DEFEATED!':'CUPID FELL.',LW/2,TY+8,'#ffd700',2);
+  ptc(won?'LOVE PREVAILS':'EROS LAUGHS AT YOU',LW/2,TY+24,'#664488',1);
+  ptc('LIVES: '+G.pLives+'/3  ARROWS HIT: '+(3-G.pLives),LW/2,TY+36,'#ff4477',1);
+  pbtn('> PLAY AGAIN <',LW/2-55,TY+48,110,13,G.hBtn==='restart','#5500aa');
   drawPts();drawFlt();
 }
 

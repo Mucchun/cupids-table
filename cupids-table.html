@@ -12,7 +12,7 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer}
 <body>
 <canvas id="c"></canvas>
 <script>
-// CUPID'S 21 — BioCraftEd Vibecoding Jam 2026
+// CUPID'S 21 — POV edition — BioCraftEd Jam 2026
 const C=document.getElementById('c'),ctx=C.getContext('2d');
 const LW=480,LH=270;
 C.width=LW;C.height=LH;
@@ -22,535 +22,592 @@ addEventListener('resize',resize);resize();
 
 // ── AUDIO ─────────────────────────────────────────────────────────
 let AC=null;
-function initAC(){if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();}
+function initAC(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
 function tone(f,type,dur,vol=0.25,sweep=null,delay=0){
-  if(!AC)return;
-  const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime+delay;
-  o.connect(g);g.connect(AC.destination);
-  o.type=type;o.frequency.setValueAtTime(f,t);
-  if(sweep)o.frequency.exponentialRampToValueAtTime(sweep,t+dur);
+  if(!AC)return;const t=AC.currentTime+delay;
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.connect(g);g.connect(AC.destination);o.type=type;
+  o.frequency.setValueAtTime(f,t);if(sweep)o.frequency.exponentialRampToValueAtTime(sweep,t+dur);
   g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
   o.start(t);o.stop(t+dur);
 }
 function noise(dur,vol=0.18,delay=0){
-  if(!AC)return;
+  if(!AC)return;const t=AC.currentTime+delay;
   const buf=AC.createBuffer(1,AC.sampleRate*dur,AC.sampleRate),d=buf.getChannelData(0);
   for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
-  const s=AC.createBufferSource(),g=AC.createGain(),fl=AC.createBiquadFilter(),t=AC.currentTime+delay;
-  s.buffer=buf;fl.type='bandpass';fl.frequency.value=1800;s.connect(fl);fl.connect(g);g.connect(AC.destination);
-  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);s.start(t);s.stop(t+dur);
+  const s=AC.createBufferSource(),g=AC.createGain(),fl=AC.createBiquadFilter();
+  s.buffer=buf;fl.type='bandpass';fl.frequency.value=1600;
+  s.connect(fl);fl.connect(g);g.connect(AC.destination);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  s.start(t);s.stop(t+dur);
 }
 function snd(id){
   initAC();
-  if(id==='card'){tone(700,'triangle',.07,.18,250);}
-  if(id==='ugh'){noise(.06,.2);tone(220,'sawtooth',.35,.22,55);}
-  if(id==='ah'){tone(380,'sine',.12,.2,620);tone(620,'sine',.18,.15,820,.12);tone(820,'sine',.22,.12,1000,.28);}
-  if(id==='whoosh'){noise(.28,.22);tone(500,'sawtooth',.3,.08,80);}
-  if(id==='wild'){[380,480,620,800].forEach((f,i)=>tone(f,'sine',.14,.18,null,i*.08));}
-  if(id==='bust'){tone(280,'sawtooth',.45,.22,45);}
-  if(id==='win'){[500,650,800,1000].forEach((f,i)=>tone(f,'sine',.18,.18,null,i*.07));}
-  if(id==='tick'){tone(900,'square',.04,.08);}
+  if(id==='card')   {tone(750,'triangle',.07,.18,280);}
+  if(id==='ugh')    {noise(.07,.22);tone(210,'sawtooth',.38,.24,52);}
+  if(id==='ah')     {[380,560,720,900].forEach((f,i)=>tone(f,'sine',.15,.18,null,i*.08));}
+  if(id==='whoosh') {noise(.32,.2);tone(480,'sawtooth',.32,.07,75);}
+  if(id==='wild')   {[360,460,600,780].forEach((f,i)=>tone(f,'sine',.13,.2,null,i*.08));}
+  if(id==='bust')   {tone(260,'sawtooth',.48,.22,42);}
+  if(id==='win')    {[480,640,800,1000].forEach((f,i)=>tone(f,'sine',.2,.2,null,i*.07));}
+  if(id==='tick')   {tone(880,'square',.04,.08);}
 }
 
-// ── BITMAP FONT 4×6 ───────────────────────────────────────────────
-const BF={'0':[6,9,9,9,9,6],'1':[2,6,2,2,2,7],'2':[6,9,1,2,4,15],'3':[6,9,3,1,9,6],'4':[1,3,5,9,15,1],'5':[15,8,14,1,9,6],'6':[6,8,14,9,9,6],'7':[15,1,2,4,4,4],'8':[6,9,6,9,9,6],'9':[6,9,9,7,1,6],'A':[6,9,15,9,9,9],'B':[14,9,14,9,9,14],'C':[6,9,8,8,9,6],'D':[14,9,9,9,9,14],'E':[15,8,14,8,8,15],'F':[15,8,14,8,8,8],'G':[6,9,8,11,9,6],'H':[9,9,15,9,9,9],'I':[7,2,2,2,2,7],'J':[1,1,1,1,9,6],'K':[9,10,12,10,9,9],'L':[8,8,8,8,8,15],'M':[9,15,15,9,9,9],'N':[9,13,11,9,9,9],'O':[6,9,9,9,9,6],'P':[14,9,9,14,8,8],'Q':[6,9,9,11,9,7],'R':[14,9,14,10,9,9],'S':[7,8,6,1,1,14],'T':[15,2,2,2,2,2],'U':[9,9,9,9,9,6],'V':[9,9,9,9,6,6],'W':[9,9,9,15,15,9],'X':[9,6,6,6,6,9],'Y':[9,9,6,2,2,2],'Z':[15,1,2,4,8,15],' ':[0,0,0,0,0,0],'!':[2,2,2,2,0,2],'.':[0,0,0,0,0,2],':':[0,2,0,0,2,0],'/':[1,1,2,2,4,4],'+':[0,2,7,2,0,0],'-':[0,0,7,0,0,0],'>':[4,2,1,1,2,4],'<':[1,2,4,4,2,1],'=':[0,15,0,15,0,0],'?':[6,9,2,2,0,2],"'":[2,2,0,0,0,0],'*':[0,5,2,5,0,0],'#':[5,15,5,5,15,5],'%':[8,9,2,4,9,1]};
+// ── FONT 4×6 ─────────────────────────────────────────────────────
+const BF={'0':[6,9,9,9,9,6],'1':[2,6,2,2,2,7],'2':[6,9,1,2,4,15],'3':[6,9,3,1,9,6],'4':[1,3,5,9,15,1],'5':[15,8,14,1,9,6],'6':[6,8,14,9,9,6],'7':[15,1,2,4,4,4],'8':[6,9,6,9,9,6],'9':[6,9,9,7,1,6],'A':[6,9,15,9,9,9],'B':[14,9,14,9,9,14],'C':[6,9,8,8,9,6],'D':[14,9,9,9,9,14],'E':[15,8,14,8,8,15],'F':[15,8,14,8,8,8],'G':[6,9,8,11,9,6],'H':[9,9,15,9,9,9],'I':[7,2,2,2,2,7],'J':[1,1,1,1,9,6],'K':[9,10,12,10,9,9],'L':[8,8,8,8,8,15],'M':[9,15,15,9,9,9],'N':[9,13,11,9,9,9],'O':[6,9,9,9,9,6],'P':[14,9,9,14,8,8],'Q':[6,9,9,11,9,7],'R':[14,9,14,10,9,9],'S':[7,8,6,1,1,14],'T':[15,2,2,2,2,2],'U':[9,9,9,9,9,6],'V':[9,9,9,9,6,6],'W':[9,9,9,15,15,9],'X':[9,6,6,6,6,9],'Y':[9,9,6,2,2,2],'Z':[15,1,2,4,8,15],' ':[0,0,0,0,0,0],'!':[2,2,2,2,0,2],'.':[0,0,0,0,0,2],':':[0,2,0,0,2,0],'+':[0,2,7,2,0,0],'-':[0,0,7,0,0,0],'>':[4,2,1,1,2,4],'=':[0,15,0,15,0,0],'?':[6,9,2,2,0,2],"'":[2,2,0,0,0,0],'/':[1,1,2,2,4,4],'*':[0,5,2,5,0,0],'#':[5,15,5,5,15,5]};
 function pc(ch,x,y,col,sc=1){const r=BF[ch.toUpperCase()]||BF[' '];ctx.fillStyle=col;r.forEach((v,dy)=>{for(let dx=0;dx<4;dx++)if(v&(1<<(3-dx)))ctx.fillRect(x+dx*sc,y+dy*sc,sc,sc);});}
 function pt(s,x,y,col,sc=1){[...s].forEach((c,i)=>pc(c,x+i*5*sc,y,col,sc));}
 function ptw(s,sc=1){return s.length*5*sc;}
 function ptc(s,cx,y,col,sc=1){pt(s,Math.round(cx-ptw(s,sc)/2),y,col,sc);}
 
-// ── DRAW UTILS ────────────────────────────────────────────────────
+// ── UTILS ─────────────────────────────────────────────────────────
 function pbord(x,y,w,h,col){ctx.fillStyle=col;ctx.fillRect(x,y,w,1);ctx.fillRect(x,y+h-1,w,1);ctx.fillRect(x,y,1,h);ctx.fillRect(x+w-1,y,1,h);}
-function dith(x,y,w,h,c1,c2){ctx.fillStyle=c1;ctx.fillRect(x,y,w,h);ctx.fillStyle=c2;for(let dy=0;dy<h;dy++)for(let dx=dy%2;dx<w;dx+=2)ctx.fillRect(x+dx,y+dy,1,1);}
+function fillR(x,y,w,h,col){ctx.fillStyle=col;ctx.fillRect(x,y,w,h);}
 function pbtn(lbl,x,y,w,h,hov,col='#3d0077'){
-  ctx.fillStyle='#060010';ctx.fillRect(x,y,w,h);
-  ctx.fillStyle=hov?hc(col):col;ctx.fillRect(x+1,y+1,w-2,h-2);
+  fillR(x,y,w,h,'#060010');fillR(x+1,y+1,w-2,h-2,hov?lc(col):col);
   pbord(x,y,w,h,hov?'#ffdd00':'#7700cc');
   ptc(lbl,x+w/2,y+(h-6)/2|0,hov?'#ffee88':'#ddbbff',1);
 }
-function hc(c){const m={'#3d0077':'#5500bb','#550022':'#880033','#005533':'#008844','#333':'#555'};return m[c]||'#6600cc';}
+function lc(c){const m={'#3d0077':'#5500bb','#550022':'#880033','#005533':'#008844'};return m[c]||'#6600cc';}
 
-// ── BIG CUPID / EROS SPRITE  (28w × 46h, centered at cx,cy) ──────
-function drawChar(cx,cy,st,sf,isEros){
-  // st=state: idle|draw|hit|win|think
-  // sf=state frame
-  const bob=(st==='idle'||st==='think')?Math.round(Math.sin(G.frame*.07)*1.5):0;
-  const shake=(st==='hit')?Math.round(Math.sin(sf*.9)*4):0;
-  const jump=(st==='win')?-Math.min(10,sf*.4):0;
-  const armFwd=(st==='draw')?Math.min(9,sf*.5|0):0;
+// ── BIG EROS POV SPRITE ───────────────────────────────────────────
+function drawEros(st,sf){
+  // st: idle|draw|hit|win|think   sf: state frame
+  const cx=240;
+  const bob=(st==='idle'||st==='think')?Math.round(Math.sin(G.frame*.055)*2):0;
+  const recoil=st==='hit'?-Math.min(sf*.6,10)|0:0;
+  const lean=st==='win'?Math.max(0,5-sf*.12)|0:0;
+  const oy=bob+recoil+lean;
+  // head center: (240, 68+oy)
+  const hy=68+oy;
 
-  const x=cx-14+shake, y=cy-23+bob+jump;
+  // ── WINGS (drawn first, behind) ──
+  fillR(cx-106,hy-8, 40,4,'#bbbbdd');fillR(cx-112,hy-4,48,5,'#bbbbdd');
+  fillR(cx-114,hy+1, 52,6,'#bbbbdd');fillR(cx-110,hy+8, 44,4,'#bbbbdd');
+  fillR(cx-100,hy+14,32,3,'#bbbbdd');fillR(cx-86, hy+18,18,2,'#bbbbdd');
+  fillR(cx+66, hy-8, 40,4,'#bbbbdd');fillR(cx+64, hy-4, 48,5,'#bbbbdd');
+  fillR(cx+62, hy+1, 52,6,'#bbbbdd');fillR(cx+66, hy+8, 44,4,'#bbbbdd');
+  fillR(cx+68, hy+14,32,3,'#bbbbdd');fillR(cx+68, hy+18,18,2,'#bbbbdd');
+  fillR(cx-94, hy-2, 22,10,'#9999bb');fillR(cx+72, hy-2, 22,10,'#9999bb');
 
-  // WIN glow
-  if(st==='win'){ctx.fillStyle='rgba(255,220,80,.25)';ctx.fillRect(x-6,y-4,40,54);}
+  // ── HALO ──
+  fillR(cx-24,hy-46,48,3,'#ffd700');fillR(cx-28,hy-44,56,2,'#ffd700');
+  fillR(cx-28,hy-44,4,7,'#ffd700');fillR(cx+24,hy-44,4,7,'#ffd700');
+  fillR(cx-20,hy-45,40,1,'#ffff99');
 
-  // WINGS
-  const wc=isEros?'#bbbbdd':'#dde8ff', ws=isEros?'#9999bb':'#aaaacc';
-  ctx.fillStyle=wc;
-  ctx.fillRect(x-3,y+11,7,2);ctx.fillRect(x-4,y+13,9,3);ctx.fillRect(x-5,y+16,10,3);ctx.fillRect(x-4,y+19,8,2);ctx.fillRect(x-2,y+21,5,1);
-  ctx.fillRect(x+21,y+11,7,2);ctx.fillRect(x+23,y+13,9,3);ctx.fillRect(x+23,y+16,10,3);ctx.fillRect(x+24,y+19,8,2);ctx.fillRect(x+25,y+21,5,1);
-  ctx.fillStyle=ws;
-  ctx.fillRect(x-2,y+13,4,3);ctx.fillRect(x+26,y+13,4,3);
+  // ── HAIR ──
+  fillR(cx-24,hy-40,48,10,'#1a0800');fillR(cx-28,hy-36,6,14,'#1a0800');fillR(cx+22,hy-36,6,14,'#1a0800');
+  fillR(cx-24,hy-40,14,5,'#2a1000');fillR(cx+10,hy-40,14,5,'#2a1000');
 
-  // HALO
-  ctx.fillStyle='#ffd700';
-  ctx.fillRect(x+8,y,12,1);ctx.fillRect(x+6,y+1,16,1);ctx.fillRect(x+6,y+2,1,2);ctx.fillRect(x+21,y+2,1,2);
-  ctx.fillStyle='#ffff99';ctx.fillRect(x+10,y+1,8,1);
+  // ── HEAD ──
+  fillR(cx-24,hy-30,48,52,'#c88050');
+  fillR(cx-24,hy+18,48,4,'#a86030'); // jaw shadow
 
-  // HAIR
-  const hc2=isEros?'#1a0800':'#ffcc44', hcd=isEros?'#0a0400':'#bb9900';
-  ctx.fillStyle=hc2;
-  ctx.fillRect(x+6,y+3,16,4);ctx.fillRect(x+5,y+4,2,6);ctx.fillRect(x+21,y+4,2,6);
-  ctx.fillStyle=hcd;ctx.fillRect(x+8,y+3,4,2);ctx.fillRect(x+16,y+3,4,2);
-  if(isEros){ctx.fillStyle='#2a0e00';ctx.fillRect(x+6,y+3,16,2);}
+  // ── POINTED EARS ──
+  fillR(cx-30,hy-14,6,8,'#c88050');fillR(cx-32,hy-12,3,4,'#a86030');
+  fillR(cx+24,hy-14,6,8,'#c88050');fillR(cx+29,hy-12,3,4,'#a86030');
 
-  // HEAD
-  const sk=isEros?'#d49060':'#ffd8a8', skd=isEros?'#b07040':'#e6b87a';
-  ctx.fillStyle=sk;ctx.fillRect(x+6,y+5,16,13);
-  ctx.fillStyle=skd;ctx.fillRect(x+6,y+16,16,2);
+  // ── EYEBROWS (always menacing) ──
+  fillR(cx-22,hy-20,18,3,'#0a0300');fillR(cx+4,hy-20,18,3,'#0a0300');
+  fillR(cx-22,hy-20,5,2,'#1a0800');fillR(cx+17,hy-20,5,2,'#1a0800');
 
-  // EYES
-  const ec=isEros?'#dd1133':'#1a1a44';
-  ctx.fillStyle=ec;ctx.fillRect(x+8,y+8,3,4);ctx.fillRect(x+17,y+8,3,4);
-  ctx.fillStyle='#ffffff';ctx.fillRect(x+8,y+8,1,1);ctx.fillRect(x+17,y+8,1,1);
-  if(st==='hit'){ctx.fillStyle='#ff0000';ctx.fillRect(x+8,y+8,3,4);ctx.fillRect(x+17,y+8,3,4);}
-  // Brows
-  ctx.fillStyle=isEros?'#880011':'#443300';
-  if(isEros){ctx.fillRect(x+8,y+6,4,1);ctx.fillRect(x+16,y+6,4,1);} // angry brows
-  else{ctx.fillRect(x+8,y+7,3,1);ctx.fillRect(x+17,y+7,3,1);}
-
-  // BLUSH (player only)
-  if(!isEros){ctx.fillStyle='#ffaaaa';ctx.fillRect(x+7,y+12,2,1);ctx.fillRect(x+19,y+12,2,1);}
-
-  // MOUTH
-  ctx.fillStyle=isEros?'#aa2233':'#cc6677';
-  if(st==='win')     {ctx.fillRect(x+10,y+14,8,2);ctx.fillRect(x+9,y+13,10,1);}
-  else if(st==='hit'){ctx.fillRect(x+11,y+14,6,2);ctx.fillRect(x+10,y+13,1,2);ctx.fillRect(x+17,y+13,1,2);}
-  else if(isEros)    {ctx.fillRect(x+10,y+14,8,1);ctx.fillRect(x+11,y+15,6,1);}// smirk
-  else               {ctx.fillRect(x+11,y+14,6,1);}
-
-  // NECK + BODY
-  ctx.fillStyle=sk;ctx.fillRect(x+11,y+18,6,2);
-  const tc=isEros?'#cc2233':'#ff88cc', tcd=isEros?'#991122':'#dd44aa';
-  ctx.fillStyle=tc;ctx.fillRect(x+7,y+19,14,14);
-  ctx.fillStyle=tcd;ctx.fillRect(x+7,y+25,14,2); // belt
-
-  // ARMS — player's left arm holds bow, right arm is free. Eros mirrored.
-  const bowArmX=isEros?armFwd:-armFwd; // eros extends arm toward center (right), player extends left
-  ctx.fillStyle=sk;
-  // Left arm
-  ctx.fillRect(x+4+bowArmX,y+20,4,3);ctx.fillRect(x+3+bowArmX,y+19,3,7);
-  // Right arm
-  ctx.fillRect(x+20-bowArmX,y+20,4,3);ctx.fillRect(x+22-bowArmX,y+19,3,7);
-
-  // BOW (left hand of player, right hand of eros)
-  const bx=isEros?(x+23-bowArmX):(x+2+bowArmX);
-  ctx.fillStyle='#885522';ctx.fillRect(bx,y+14,2,16);
-  ctx.fillStyle='#ccaa55';ctx.fillRect(bx+1,y+15,1,14); // string
-  // Nocked arrow (only if not shooting)
-  if(st!=='shoot'){
-    ctx.fillStyle='#ccaa55';ctx.fillRect(bx+(isEros?-7:2),y+21,10,1);
-    ctx.fillStyle='#aaaaaa';ctx.fillRect(bx+(isEros?-8:11),y+20,3,3);
-    ctx.fillStyle='#ff3355';ctx.fillRect(bx+(isEros?1:2),y+20,2,3);// fletching
+  // ── EYES ──
+  const blink=G.frame%150>143;
+  if(!blink){
+    fillR(cx-20,hy-16,16,10,'#880011');fillR(cx+4,hy-16,16,10,'#880011');
+    fillR(cx-20,hy-16,16,5,'#cc1133'); fillR(cx+4,hy-16,16,5,'#cc1133');
+    fillR(cx-19,hy-15,5,3,'#ffffff'); fillR(cx+5,hy-15,5,3,'#ffffff');
+    fillR(cx-14,hy-14,6,6,'#000022'); fillR(cx+8,hy-14,6,6,'#000022');
+    if(st==='win'){fillR(cx-20,hy-16,16,10,'#cc1133');fillR(cx+4,hy-16,16,10,'#cc1133');}
+  } else {
+    fillR(cx-20,hy-13,16,4,'#c88050');fillR(cx+4,hy-13,16,4,'#c88050');
+    fillR(cx-20,hy-13,16,2,'#1a0800');fillR(cx+4,hy-13,16,2,'#1a0800');
   }
 
-  // LEGS + FEET
-  ctx.fillStyle=isEros?'#222':'#221133';
-  ctx.fillRect(x+8,y+33,5,5);ctx.fillRect(x+15,y+33,5,5);
-  ctx.fillStyle=sk;ctx.fillRect(x+8,y+33,5,3);ctx.fillRect(x+15,y+33,5,3);
-  ctx.fillStyle='#885522';
-  ctx.fillRect(x+7,y+37,6,4);ctx.fillRect(x+15,y+37,6,4);
-  ctx.fillStyle='#664411';ctx.fillRect(x+7,y+40,6,1);ctx.fillRect(x+15,y+40,6,1);
+  // ── NOSE ──
+  fillR(cx-4,hy-2,8,8,'#a86030');fillR(cx-6,hy+4,12,4,'#a86030');
 
-  // HIT FLASH
-  if(st==='hit'&&sf%4<2){ctx.fillStyle='rgba(255,40,40,.4)';ctx.fillRect(x+5,y+3,18,40);}
+  // ── MOUTH ──
+  if(st==='win'){
+    fillR(cx-14,hy+12,28,5,'#882233');fillR(cx-12,hy+10,24,3,'#882233');
+    fillR(cx-10,hy+13,8,4,'#ffffff');fillR(cx+2,hy+13,8,4,'#ffffff'); // teeth
+  } else if(st==='hit'){
+    fillR(cx-12,hy+12,24,6,'#882233');fillR(cx-10,hy+13,20,5,'#440011');
+  } else if(st==='think'){
+    fillR(cx-4,hy+13,18,3,'#882233'); // smirk
+  } else {
+    fillR(cx-12,hy+13,24,3,'#882233');
+  }
 
-  // THINKING DOTS (Eros)
-  if(isEros&&st==='think'){const d='.'.repeat(1+(G.frame/18|0)%3+1);ptc(d,cx,cy+26,'#ff88cc',1);}
+  // ── NECK ──
+  fillR(cx-10,hy+22,20,14,'#c88050');
+
+  // ── SHOULDERS + BODY ──
+  fillR(cx-54,hy+32,108,72,'#cc2233');
+  fillR(cx-54,hy+32,8,72,'#991122');fillR(cx+46,hy+32,8,72,'#991122');
+  fillR(cx-16,hy+32,32,6,'#ee3344'); // collar
+  fillR(cx-54,hy+50,108,3,'#ffd700'); // gold band
+  fillR(cx-54,hy+51,108,2,'#aa8800');
+  fillR(cx-54,hy+62,108,42,'#aa1122'); // lower body
+
+  // ── ARMS resting on table ──
+  fillR(cx-80,hy+68,30,12,'#c88050'); fillR(cx-88,hy+66,16,16,'#c88050'); // left arm+hand
+  fillR(cx+50,hy+68,30,12,'#c88050'); fillR(cx+72,hy+66,16,16,'#c88050'); // right arm+hand
+  fillR(cx-88,hy+66,16,5,'#aa8800'); fillR(cx+72,hy+66,16,5,'#aa8800'); // bracers
+
+  // ── BOW (visible on left side) ──
+  fillR(cx-100,hy+24,4,52,'#885522');
+  fillR(cx-98, hy+26,2,48,'#ccaa55');
+  // nocked arrow
+  if(st!=='draw'){
+    fillR(cx-98,hy+48,16,2,'#ccaa55');
+    fillR(cx-84, hy+46,4,4,'#aaaaaa');
+    fillR(cx-100,hy+46,4,6,'#ff3355');
+  }
+
+  // ── DRAW ARM (reaches toward deck) ──
+  if(st==='draw'){
+    const reach=Math.min(sf*2,28)|0;
+    fillR(cx-14,hy+70,28,10,'#c88050');
+    fillR(cx-10,hy+65,20,14,'#c88050');
+  }
+
+  // ── HIT FLASH ──
+  if(st==='hit'&&sf%4<2){
+    ctx.fillStyle='rgba(255,50,50,.38)';ctx.fillRect(cx-120,hy-50,240,150);
+  }
+
+  // ── THINKING DOTS ──
+  if(st==='think'){
+    const d='.'.repeat(1+(G.frame/20|0)%3+1);
+    ptc(d,cx,hy+90,'#ff88cc',1);
+  }
 }
 
 // ── CARDS ─────────────────────────────────────────────────────────
-// v: 1=A 2-10=face 11=J 12=Q 13=K  wilds: 14=+5CURSE 15=SWAP 16=SHIELD 17=STEAL 18=PEEK
+// v: 1=A 2-10 11=J 12=Q 13=K  wilds: 14=+5CURSE 15=SWAP 16=SHIELD 17=STEAL 18=PEEK
 const WNAME={14:'+5',15:'SWAP',16:'SHLD',17:'STEAL',18:'PEEK'};
 const WCOL={14:'#ff4444',15:'#44aaff',16:'#44ff88',17:'#ffaa44',18:'#ff44ff'};
-const SUIT_COL=['#ff4477','#334499','#ff4477','#334499'];
-const CW=22,CH=32;
+const SCOL=['#ff4477','#334499','#ff4477','#334499'];
 
 function cval(c){if(c.wild)return 0;if(c.v>=11)return 10;return c.v;}
-function clabel(c){if(c.wild)return WNAME[c.v]||'?';if(c.v===1)return'A';if(c.v===11)return'J';if(c.v===12)return'Q';if(c.v===13)return'K';return''+c.v;}
+function clabel(c){if(c.wild)return WNAME[c.v];if(c.v===1)return'A';if(c.v===11)return'J';if(c.v===12)return'Q';if(c.v===13)return'K';return''+c.v;}
 
-function drawCard(x,y,c,face=true,hov=false,selFlash=false){
+// Small card (Eros side, perspective-distant)
+const SCW=15,SCH=21;
+function drawSmCard(x,y,c,face=false){
   if(!face){
-    dith(x,y,CW,CH,'#1a0035','#2d0055');pbord(x,y,CW,CH,'#5500aa');
-    ctx.fillStyle='#3a0060';
-    for(let dy=3;dy<CH-3;dy+=5)for(let dx=3;dx<CW-3;dx+=5){ctx.fillRect(x+dx,y+dy,3,1);ctx.fillRect(x+dx+1,y+dy-1,1,3);}
+    fillR(x,y,SCW,SCH,'#1a0035');fillR(x+1,y+1,SCW-2,SCH-2,'#2d0055');
+    pbord(x,y,SCW,SCH,'#5500aa');
+    fillR(x+4,y+5,3,1,'#440088');fillR(x+5,y+4,1,3,'#440088');
     return;
   }
-  const wld=c.wild;
-  const col=wld?WCOL[c.v]:SUIT_COL[c.suit];
-  ctx.fillStyle=wld?'#120022':'#f0e0ff';ctx.fillRect(x,y,CW,CH);
-  pbord(x,y,CW,CH,wld?col:'#8800cc');
-  if(hov||selFlash){pbord(x+1,y+1,CW-2,CH-2,wld?col:'#ffaa00');}
+  const wld=c.wild,col=wld?WCOL[c.v]:SCOL[c.suit]||'#334499';
+  fillR(x,y,SCW,SCH,wld?'#120022':'#e8d4ff');pbord(x,y,SCW,SCH,wld?col:'#8800cc');
+  const lbl=clabel(c);
+  if(wld){ptc(WNAME[c.v],x+SCW/2,y+4,col,1);ptc('WLD',x+SCW/2,y+12,col,1);}
+  else{pt(lbl,x+2,y+2,col,1);ptc(lbl,x+SCW/2,y+SCH/2-4,col,lbl.length>1?1:1);}
+}
+
+// Large card (player hand, close up)
+const LCW=26,LCH=38;
+function drawLgCard(x,y,c,hov=false){
+  const wld=c.wild,col=wld?WCOL[c.v]:SCOL[c.suit]||'#334499';
+  fillR(x,y,LCW,LCH,wld?'#180030':'#f0e4ff');pbord(x,y,LCW,LCH,wld?col:'#8800cc');
+  if(hov)pbord(x+1,y+1,LCW-2,LCH-2,'#ffaa00');
+  const lbl=clabel(c);
   if(wld){
-    ctx.fillStyle=col;ctx.fillRect(x+1,y+1,CW-2,3);ctx.fillRect(x+1,y+CH-4,CW-2,3);
-    ptc(WNAME[c.v],x+CW/2,y+6,col,1);
-    ptc('WILD',x+CW/2,y+14,'#ffffff',1);
-    ptc('!',x+CW/2,y+22,col,1);
+    fillR(x+1,y+1,LCW-2,3,col);fillR(x+1,y+LCH-4,LCW-2,3,col);
+    ptc(WNAME[c.v],x+LCW/2,y+6,col,1);ptc('WILD',x+LCW/2,y+15,'#ffffff',1);ptc('!',x+LCW/2,y+24,col,1);
   } else {
-    const lbl=clabel(c);
-    const sc=lbl.length>1?1:2;
     pt(lbl,x+2,y+2,col,1);
-    ptc(lbl,x+CW/2,y+CH/2-5,col,sc);
-    // suit dot
-    ctx.fillStyle=col;ctx.fillRect(x+CW/2-1,y+CH/2+5+sc*2,3,2);
+    ptc(lbl,x+LCW/2,y+LCH/2-5,col,lbl.length>1?1:2);
+    ctx.fillStyle=col;ctx.fillRect(x+LCW/2-1,y+LCH/2+6,3,2);
   }
 }
 
-// ── PARTICLES + FLOATS ───────────────────────────────────────────
+// ── PARTICLES ─────────────────────────────────────────────────────
 let PTS=[];
-function spark(x,y,n=8,col='#ff4488'){for(let i=0;i<n;i++)PTS.push({x,y,vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4-1.5,life:1,dec:.02+Math.random()*.02,col,sz:Math.random()>.5?2:1});}
+function spark(x,y,n=8,col='#ff4488'){for(let i=0;i<n;i++)PTS.push({x,y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5-2,life:1,dec:.02+Math.random()*.02,col,sz:Math.random()>.5?2:1});}
 function tickPts(){PTS=PTS.filter(p=>p.life>0);PTS.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.07;p.life-=p.dec;});}
 function drawPts(){PTS.forEach(p=>{ctx.fillStyle=p.col;ctx.globalAlpha=p.life;ctx.fillRect(p.x|0,p.y|0,p.sz,p.sz);});ctx.globalAlpha=1;}
-
 let FLT=[];
 function flt(t,x,y,col,sc=1){FLT.push({t,x,y:y|0,col,sc,life:100});}
 function tickFlt(){FLT=FLT.filter(f=>f.life>0);FLT.forEach(f=>{f.y-=.5;f.life--;});}
-function drawFlt(){FLT.forEach(f=>{ctx.globalAlpha=Math.min(1,f.life/20);ptc(f.t,f.x|0,f.y|0,f.col,f.sc);});ctx.globalAlpha=1;}
+function drawFlt(){FLT.forEach(f=>{ctx.globalAlpha=Math.min(1,f.life/18);ptc(f.t,f.x|0,f.y|0,f.col,f.sc);});ctx.globalAlpha=1;}
 
-// ── ARROW ANIMATION ──────────────────────────────────────────────
-let ARW=null; // flying arrow
+// ── ARROW ANIMATIONS ──────────────────────────────────────────────
+let ARW=null; // {t, fromRight, done}
 let screenShake=0;
 
-function fireArrow(fromRight){
-  const fx=fromRight?440:40, fy=120, tx=fromRight?40:440, ty=115+Math.random()*20|0;
-  ARW={fx,fy,tx,ty,t:0,fromRight};
-  snd('whoosh');
-}
+function fireArrow(fromRight){ARW={t:0,fromRight,done:false};snd('whoosh');}
 
 function tickArrow(){
-  if(!ARW)return;
-  ARW.t+=0.028;
+  if(!ARW||ARW.done)return;
+  ARW.t+=0.026;
   if(ARW.t>=1){
-    snd('ugh'); spark(ARW.tx,ARW.ty,18,'#ff4444'); spark(ARW.tx,ARW.ty,8,'#ffaa00');
-    screenShake=18;
-    if(ARW.fromRight){G.pState='hit';G.pStateF=0;G.stuckP.push({x:ARW.tx,y:ARW.ty});}
-    else              {G.oState='hit';G.oStateF=0;G.stuckO.push({x:ARW.tx,y:ARW.ty});}
-    ARW=null;
+    ARW.done=true;
+    if(ARW.fromRight){
+      snd('ugh');screenShake=20;spark(LW/2,LH/2,24,'#ff4444');spark(LW/2,LH/2,12,'#ffaa00');
+      G.pState='hit';G.pStateF=0;G.stuckP.push({angle:(Math.random()-.5)*.4});
+    } else {
+      snd('ugh');spark(240,110,20,'#ff4444');
+      G.oState='hit';G.oStateF=0;G.stuckO.push({x:220+Math.random()*40|0,y:80+Math.random()*20|0});
+    }
     setTimeout(()=>{
-      if(G.pLives<=0||G.oLives<=0) G.phase='gameover';
+      if(G.pLives<=0||G.oLives<=0)G.phase='gameover';
       else initRound();
-    },1200);
+    },1300);
+    return;
   }
 }
 
-function drawArrow(){
-  if(!ARW)return;
-  const t=ARW.t;
-  const cx=ARW.fx+(ARW.tx-ARW.fx)*t;
-  const cy=ARW.fy+(ARW.ty-ARW.fy)*t - Math.sin(t*Math.PI)*22;
-  const nx=ARW.fx+(ARW.tx-ARW.fx)*(t+.05);
-  const ny=ARW.fy+(ARW.ty-ARW.fy)*(t+.05) - Math.sin((t+.05)*Math.PI)*22;
-  const ang=Math.atan2(ny-cy,nx-cx);
-  // trail
-  for(let i=1;i<=4;i++){
-    const tt=Math.max(0,t-i*.055);
-    const tx2=ARW.fx+(ARW.tx-ARW.fx)*tt, ty2=ARW.fy+(ARW.ty-ARW.fy)*tt-Math.sin(tt*Math.PI)*22;
-    ctx.fillStyle=`rgba(200,150,80,${.25/i})`;ctx.fillRect(tx2|0,ty2|0,2,1);
-  }
-  ctx.save();ctx.translate(cx|0,cy|0);ctx.rotate(ang);
-  ctx.fillStyle='#885522';ctx.fillRect(-11,-1,22,2);
-  ctx.fillStyle='#ccaa55';ctx.fillRect(-11,-1,22,1);
-  ctx.fillStyle='#cccccc';ctx.fillRect(9,-2,4,4);
-  ctx.fillStyle='#ff3355';ctx.fillRect(-13,-2,4,5);
-  ctx.fillStyle='#cc1133';ctx.fillRect(-13,-1,4,3);
+// Incoming arrow toward camera (from Eros): grows bigger
+function drawIncomingArrow(t){
+  const ease=t*t; // accelerate
+  const sz=Math.round(ease*90);
+  const x=LW/2, y=Math.round(130+ease*80);
+  ctx.save();ctx.translate(x,y);
+  ctx.fillStyle='#885522';ctx.fillRect(-sz/2|0,-2,sz,5); // shaft
+  ctx.fillStyle='#ccaa55';ctx.fillRect(-sz/2|0,-1,sz,2); // highlight
+  // tip (diamond pointing at us)
+  ctx.fillStyle='#bbbbbb';ctx.fillRect(-5,-5,10,10);
+  ctx.fillStyle='#888888';ctx.fillRect(-3,-7,6,4);ctx.fillRect(-7,-3,4,6);ctx.fillRect(3,-3,4,6);ctx.fillRect(-3,3,6,4);
+  ctx.fillStyle='#dddddd';ctx.fillRect(-2,-2,4,4);
+  // fletching
+  ctx.fillStyle='#ff3344';ctx.fillRect(sz/2|0-8,-8,10,16);ctx.fillStyle='#cc1122';ctx.fillRect(sz/2|0-8,-8,3,16);
   ctx.restore();
 }
 
-// ── STUCK ARROWS ON CHARACTERS ───────────────────────────────────
-function drawStuck(){
-  G.stuckP.forEach(a=>{
-    ctx.fillStyle='#885522';ctx.fillRect(a.x,a.y,14,1);
-    ctx.fillStyle='#cccccc';ctx.fillRect(a.x+13,a.y-1,3,3);
-    ctx.fillStyle='#ff3355';ctx.fillRect(a.x-1,a.y-2,3,5);
+// Outgoing arrow from player toward Eros: shrinks as it flies up
+function drawOutgoingArrow(t){
+  const ease=1-Math.pow(1-t,2);
+  const sz=Math.round((1-ease)*60+4);
+  const x=LW/2, y=Math.round(230-ease*140);
+  ctx.save();ctx.translate(x,y);ctx.rotate(-0.05);
+  ctx.fillStyle='#885522';ctx.fillRect(-sz/2|0,-2,sz,4);
+  ctx.fillStyle='#aaaaaa';ctx.fillRect(sz/2|0,-3,5,5);
+  ctx.fillStyle='#ff3344';ctx.fillRect(-sz/2|0-5,-5,6,10);
+  ctx.restore();
+}
+
+// Stuck arrows on player (HUD, shown as arrow icons)
+function drawStuckOnPlayer(){
+  G.stuckP.forEach((a,i)=>{
+    const x=20+i*22,y=LH-24;
+    ctx.save();ctx.translate(x,y);ctx.rotate(a.angle||0);
+    fillR(-10,-1,20,3,'#885522');fillR(8,-2,4,4,'#aaaaaa');fillR(-12,-4,4,8,'#ff3344');
+    ctx.restore();
   });
+}
+
+// Stuck arrows on Eros (drawn on top of Eros sprite)
+function drawStuckOnEros(){
   G.stuckO.forEach(a=>{
-    ctx.fillStyle='#885522';ctx.fillRect(a.x-14,a.y,14,1);
-    ctx.fillStyle='#cccccc';ctx.fillRect(a.x-17,a.y-1,3,3);
-    ctx.fillStyle='#ff3355';ctx.fillRect(a.x+2,a.y-2,3,5);
+    ctx.save();ctx.translate(a.x,a.y);ctx.rotate(.15+(Math.random()*.1-.05));
+    fillR(-12,-1,24,3,'#885522');fillR(10,-2,4,4,'#aaaaaa');fillR(-14,-4,4,8,'#ff3344');
+    ctx.restore();
   });
+}
+
+// ── ROOM BACKGROUND ───────────────────────────────────────────────
+const STARS=[];for(let i=0;i<55;i++)STARS.push([Math.random()*480|0,Math.random()*138|0,Math.random()>.7?2:1,Math.random()]);
+const TWINK=[];for(let i=0;i<10;i++)TWINK.push([30+Math.random()*420|0,5+Math.random()*100|0]);
+
+function drawRoom(){
+  // BG
+  fillR(0,0,LW,LH,'#06000e');
+
+  // Stone walls — left and right columns
+  for(let y=0;y<138;y+=8){
+    const shade=(y/138*.3+.4);
+    const c=Math.round(shade*28);
+    ctx.fillStyle=`rgb(${c},${c-2},${c+4})`;
+    ctx.fillRect(0,y,72,8);ctx.fillRect(408,y,72,8);
+    if(y%16===0){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(0,y,72,1);ctx.fillRect(408,y,72,1);}
+  }
+  // Mortar lines on stone
+  ctx.fillStyle='rgba(0,0,0,.35)';
+  for(let y=0;y<138;y+=16){ctx.fillRect(0,y,72,1);ctx.fillRect(408,y,72,1);}
+  for(let y=0;y<138;y+=16){ctx.fillRect(0,y+8,36,1);ctx.fillRect(36,y,36,1);ctx.fillRect(408,y+8,36,1);ctx.fillRect(444,y,36,1);}
+
+  // Gothic arch window (centered behind Eros)
+  fillR(72,0,336,138,'#09001a'); // dark backdrop
+  // Window arch shape — draw the stone arch
+  ctx.fillStyle='#151030';
+  // Arch stones (border of window)
+  for(let i=0;i<14;i++){
+    const t=i/13,ax=72+t*336,thick=6;
+    ctx.fillRect(ax,0,thick,138);
+  }
+  // Actually just draw the window opening
+  fillR(80,0,320,130,'#06001a');
+  // Stars in window
+  STARS.forEach(([sx,sy,sz,br])=>{
+    if(sx<80||sx>400)return;
+    ctx.fillStyle=br>.55?'#ffffff':'#8866aa';ctx.fillRect(sx,sy,sz,sz);
+  });
+  TWINK.forEach(([tx,ty],i)=>{
+    if(tx<84||tx>396)return;
+    if(Math.sin(G.frame*.045+i*1.4)>.55){ctx.fillStyle='#ffffff';ctx.fillRect(tx-1,ty,1,1);ctx.fillRect(tx+1,ty,1,1);ctx.fillRect(tx,ty-1,1,1);ctx.fillRect(tx,ty+1,1,1);}
+  });
+  // Window frame
+  fillR(74,0,6,138,'#1e1840');fillR(400,0,6,138,'#1e1840');
+  fillR(80,128,320,10,'#1e1840');
+  // Vertical and horizontal bars
+  fillR(237,0,6,128,'#1e1840');fillR(80,60,320,5,'#1e1840');
+  // Window arch top (rounded)
+  fillR(78,0,4,80,'#151030');fillR(400,0,4,80,'#151030');
+
+  // Torches on walls
+  drawTorch(50,55);drawTorch(430,55);
+
+  // Ceiling edge
+  fillR(0,0,LW,3,'#0a0018');
+
+  // TABLE SURFACE (perspective trapezoid)
+  // Eros sits at y≈138 (where table edge is)
+  const TY=140; // table far edge y
+  for(let y=TY;y<LH;y++){
+    const t=(y-TY)/(LH-TY);
+    const x1=Math.round(100*(1-t));
+    const x2=Math.round(LW-100*(1-t));
+    ctx.fillStyle=y%2===0?'#1a0330':'#200440';
+    ctx.fillRect(x1,y,x2-x1,1);
+  }
+  // Table far edge (gold line)
+  fillR(0,TY,LW,2,'#5500aa');
+  fillR(2,TY,LW-4,1,'#ffd700');
+  // Near edge glow
+  fillR(0,LH-3,LW,3,'#3a0066');
+  // Side edge lines (perspective)
+  ctx.fillStyle='#5500aa';
+  for(let y=TY;y<LH;y++){
+    const t=(y-TY)/(LH-TY),x1=Math.round(100*(1-t)),x2=Math.round(LW-100*(1-t));
+    if(y%2===0){ctx.fillRect(x1,y,2,1);ctx.fillRect(x2-2,y,2,1);}
+  }
+  // Center cloth ornament on table
+  fillR(LW/2-30,158,60,2,'#5500aa');fillR(LW/2-20,162,40,2,'#3a0066');
+  fillR(LW/2-2,TY+4,4,1,'#ffd700');fillR(LW/2-4,TY+6,8,1,'#ffd700');
+}
+
+function drawTorch(tx,ty){
+  // Bracket
+  fillR(tx-3,ty+10,6,16,'#3a3030');fillR(tx-1,ty+6,2,4,'#3a3030');
+  fillR(tx-5,ty+14,10,4,'#4a3030');
+  // Candle
+  fillR(tx-3,ty,6,12,'#ddddaa');fillR(tx-2,ty,4,10,'#eeeebb');
+  // Wick
+  fillR(tx-1,ty-3,2,3,'#333333');
+  // Animated flame
+  const flk=Math.sin(G.frame*.18+tx)*.5;
+  const fx=tx+flk|0;
+  fillR(fx-4,ty-12,8,10,'#ffcc00');fillR(fx-3,ty-15,6,7,'#ff8800');
+  fillR(fx-2,ty-17,4,5,'#ff4400');fillR(fx-1,ty-18,2,4,'#ffffff');
+  // Glow on wall
+  ctx.fillStyle='rgba(255,160,0,.06)';ctx.fillRect(tx-20,ty-20,40,40);
 }
 
 // ── DECK + SCORING ────────────────────────────────────────────────
 function mkDeck(){
-  const d=[];
-  for(let s=0;s<4;s++)for(let v=1;v<=13;v++)d.push({v,suit:s,wild:false});
+  const d=[];for(let s=0;s<4;s++)for(let v=1;v<=13;v++)d.push({v,suit:s,wild:false});
   [14,15,16,17,18,14,15,16].forEach(v=>d.push({v,suit:0,wild:true}));
   return shuf(d);
 }
 function shuf(a){for(let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
-
 function total(hand){
   let t=0,ac=0;
-  hand.forEach(c=>{if(c.wild)return;if(c.v===1){t+=11;ac++;}else t+=cval(c);});
-  while(t>21&&ac>0){t-=10;ac--;}
-  return t;
+  hand.forEach(c=>{if(c.wild||c.ghost)return;if(c.v===1){t+=11;ac++;}else t+=cval(c);});
+  while(t>21&&ac>0){t-=10;ac--;}return t;
 }
 
-// ── WILD EFFECTS ─────────────────────────────────────────────────
+// ── WILD EFFECTS ──────────────────────────────────────────────────
 const WFULL={14:'+5 CURSE!',15:'HANDS SWAPPED!',16:'SHIELDED!',17:'CARD STOLEN!',18:'PEEK!'};
-
 function applyWild(c,forP){
-  snd('wild');
-  G.wildFlash={col:WCOL[c.v],t:30};
-  flt(WFULL[c.v]||'WILD!',LW/2,LH/2-15,WCOL[c.v],1);
-  spark(LW/2,LH/2,12,WCOL[c.v]);
+  snd('wild');G.wildFlash={col:WCOL[c.v],t:35};
+  flt(WFULL[c.v]||'WILD!',LW/2,LH/2-20,WCOL[c.v],1);spark(LW/2,LH/2,14,WCOL[c.v]);
   const v=c.v;
-  if(v===14){if(forP){G.oHand=[...G.oHand,{v:5,suit:0,wild:false,ghost:true}];flt('EROS +5!',LW/2+60,100,'#ff4444',1);}else{G.pHand=[...G.pHand,{v:5,suit:0,wild:false,ghost:true}];flt('YOU +5!',LW/2-60,180,'#ff4444',1);}}
+  if(v===14){if(forP){flt('EROS +5!',LW/2,120,'#ff4444',1);G.oHand.push({v:5,suit:0,wild:false,ghost:true});}else{flt('YOU +5!',LW/2,220,'#ff4444',1);G.pHand.push({v:5,suit:0,wild:false,ghost:true});}}
   if(v===15){const tmp=G.pHand;G.pHand=G.oHand;G.oHand=tmp;}
   if(v===16){if(forP)G.pShield=true;else G.oShield=true;}
-  if(v===17){if(forP&&G.oHand.length>0){G.pHand.push(G.oHand.pop());}else if(!forP&&G.pHand.length>0){G.oHand.push(G.pHand.pop());}}
-  if(v===18){flt('EROS HAS '+total(G.oHand)+'!',LW/2,LH/2+5,'#ff44ff',1);}
+  if(v===17){if(forP&&G.oHand.length>0)G.pHand.push(G.oHand.pop());else if(!forP&&G.pHand.length>0)G.oHand.push(G.pHand.pop());}
+  if(v===18){flt('EROS HAS '+total(G.oHand)+'!',LW/2,LH/2,'#ff44ff',1);}
 }
 
 // ── GAME STATE ────────────────────────────────────────────────────
-let G={
-  phase:'menu',   // menu|player|opp|resolve|gameover
-  deck:[],pHand:[],oHand:[],
-  pLives:3,oLives:3,
-  pShield:false,oShield:false,
-  pState:'idle',pStateF:0,
-  oState:'idle',oStateF:0,
-  stuckP:[],stuckO:[],
-  oppTimer:0,
-  msg:'',msgT:0,
-  frame:0,
-  hBtn:null,
-  wildFlash:null,
-};
+let G={phase:'menu',deck:[],pHand:[],oHand:[],pLives:3,oLives:3,pShield:false,oShield:false,pState:'idle',pStateF:0,oState:'idle',oStateF:0,stuckP:[],stuckO:[],oppTimer:0,msg:'',msgT:0,frame:0,hBtn:null,wildFlash:null};
 function setMsg(m,t=130){G.msg=m;G.msgT=t;}
 
-// ── INIT ROUND ────────────────────────────────────────────────────
 function initRound(){
-  G.deck=mkDeck();G.pHand=[];G.oHand=[];
-  G.pShield=false;G.oShield=false;
-  G.msg='';G.msgT=0;G.wildFlash=null;FLT=[];
+  G.deck=mkDeck();G.pHand=[];G.oHand=[];G.pShield=false;G.oShield=false;
+  G.msg='';G.msgT=0;G.wildFlash=null;FLT=[];ARW=null;
   G.pState='idle';G.oState='idle';G.pStateF=0;G.oStateF=0;
-  ARW=null;
-  // Deal 1 card each
   const pc=G.deck.pop(),oc=G.deck.pop();
-  G.pHand.push(pc);G.oHand.push(oc);
-  snd('card');
-  if(pc.wild){setTimeout(()=>applyWild(pc,true),300);}
-  if(oc.wild){setTimeout(()=>applyWild(oc,false),600);}
+  G.pHand.push(pc);G.oHand.push(oc);snd('card');
+  if(pc.wild)setTimeout(()=>applyWild(pc,true),300);
+  if(oc.wild)setTimeout(()=>applyWild(oc,false),600);
   G.phase='player';
 }
-function newGame(){
-  G.pLives=3;G.oLives=3;G.stuckP=[];G.stuckO=[];
-  PTS=[];FLT=[];ARW=null;initRound();
-}
+function newGame(){G.pLives=3;G.oLives=3;G.stuckP=[];G.stuckO=[];PTS=[];FLT=[];ARW=null;initRound();}
 
 // ── PLAYER ACTIONS ────────────────────────────────────────────────
 function actDraw(){
   if(G.phase!=='player')return;
   const c=G.deck.pop();if(!c)return;
-  G.pHand.push(c);snd('card');
-  G.pState='draw';G.pStateF=0;
-  spark(LW/2-10,155,6,'#aa44ff');
+  G.pHand.push(c);snd('card');G.pState='idle';
+  spark(LW/2,195,6,'#aa44ff');
   if(c.wild){setTimeout(()=>applyWild(c,true),200);return;}
   const t=total(G.pHand);
   if(t>21){
-    if(G.pShield){G.pShield=false;flt('SHIELD SAVES YOU!',LW/2,160,'#44ff88',1);return;}
-    snd('bust');setMsg('BUST! '+t);
-    G.pState='hit';G.pStateF=0;
-    setTimeout(()=>resolveRound(),800);
-  } else if(t===21){snd('win');setMsg('21! PERFECTO!');setTimeout(()=>resolveRound(),600);}
+    if(G.pShield){G.pShield=false;flt('SHIELD SAVES YOU!',LW/2,200,'#44ff88',1);return;}
+    snd('bust');setMsg('BUST! '+t);G.pState='hit';G.pStateF=0;
+    setTimeout(resolveRound,800);
+  } else if(t===21){snd('win');setMsg('21! PERFECT!');setTimeout(resolveRound,600);}
 }
-function actStand(){
-  if(G.phase!=='player')return;
-  G.phase='opp';G.oppTimer=50;G.oState='think';
-  setMsg('');
-}
+function actStand(){if(G.phase!=='player')return;G.phase='opp';G.oppTimer=55;G.oState='think';}
 
 // ── OPPONENT AI ───────────────────────────────────────────────────
 function oppTick(){
   if(G.phase!=='opp')return;
   if(G.oppTimer>0){G.oppTimer--;return;}
   const ot=total(G.oHand),pt=total(G.pHand);
-  // Draw if under 17, or under player score and under 20
-  if(ot<17||(ot<=pt&&ot<20&&ot<21)){
+  if(ot<17||(ot<=pt&&ot<20)){
     const c=G.deck.pop();if(!c){resolveRound();return;}
-    G.oHand.push(c);snd('card');
-    G.oState='draw';G.oStateF=0;spark(LW/2+10,80,5,'#aa44ff');
-    if(c.wild){applyWild(c,false);}
+    G.oHand.push(c);snd('card');G.oState='draw';G.oStateF=0;
+    if(c.wild)applyWild(c,false);
     const nt=total(G.oHand);
-    G.oppTimer=32;
-    if(nt>21){
-      if(G.oShield){G.oShield=false;return;}
-      snd('win');setMsg('EROS BUSTS! '+nt);
-      setTimeout(resolveRound,700);
-    } else if(nt===21){setTimeout(resolveRound,500);}
-  } else {
-    G.oState='idle';resolveRound();
-  }
+    G.oppTimer=38;
+    if(nt>21){if(G.oShield){G.oShield=false;return;}snd('win');setMsg('EROS BUSTS!');setTimeout(resolveRound,700);}
+    else if(nt===21){setTimeout(resolveRound,500);}
+  } else {G.oState='idle';resolveRound();}
 }
 
-// ── RESOLVE ───────────────────────────────────────────────────────
+// ── RESOLVE ROUND ─────────────────────────────────────────────────
 function resolveRound(){
   if(G.phase==='resolve'||G.phase==='gameover')return;
   G.phase='resolve';
   const pt=total(G.pHand),ot=total(G.oHand);
-  let w;
-  if(pt>21)w='o';
-  else if(ot>21)w='p';
-  else if(pt>ot)w='p';
-  else if(ot>pt)w='o';
-  else w='tie';
-
+  let w=pt>21?'o':ot>21?'p':pt>ot?'p':ot>pt?'o':'tie';
   if(w==='p'){
     G.oLives--;snd('win');G.pState='win';G.pStateF=0;G.oState='hit';G.oStateF=0;
-    setMsg('YOU WIN THIS ROUND!');spark(LW/2,LH/2,22,'#ffd700');
-    setTimeout(()=>fireArrow(false),700); // player shoots Eros
+    setMsg('ROUND WON!');spark(LW/2,200,22,'#ffd700');
+    setTimeout(()=>fireArrow(false),800); // outgoing arrow toward Eros
   } else if(w==='o'){
     G.pLives--;snd('ugh');G.pState='hit';G.pStateF=0;G.oState='win';G.oStateF=0;
-    setMsg('EROS WINS THIS ROUND!');
-    setTimeout(()=>fireArrow(true),700); // Eros shoots player
+    setMsg('EROS WINS ROUND');
+    setTimeout(()=>fireArrow(true),800);  // incoming arrow toward player
   } else {
-    setMsg('TIE ROUND! NO ARROWS');
-    setTimeout(initRound,1400);
+    setMsg('TIE! NO ARROWS');setTimeout(initRound,1400);
   }
 }
 
-// ── BACKGROUND ────────────────────────────────────────────────────
-const STARS=[];for(let i=0;i<65;i++)STARS.push([Math.random()*LW|0,Math.random()*LH|0,Math.random()>.7?2:1,Math.random()]);
-const TWINKLE=[];for(let i=0;i<12;i++)TWINKLE.push([Math.random()*LW|0,Math.random()*LH|0]);
-
-function drawBG(){
-  ctx.fillStyle='#06000e';ctx.fillRect(0,0,LW,LH);
-  STARS.forEach(([sx,sy,sz,br])=>{ctx.fillStyle=br>.5?'#ffffff':'#886699';ctx.fillRect(sx,sy,sz,sz);});
-  // Twinkle stars
-  TWINKLE.forEach(([sx,sy],i)=>{
-    if(Math.sin(G.frame*.04+i*1.3)>.6){ctx.fillStyle='#ffffff';ctx.fillRect(sx-1,sy,1,1);ctx.fillRect(sx+1,sy,1,1);ctx.fillRect(sx,sy-1,1,1);ctx.fillRect(sx,sy+1,1,1);}
-  });
-  // Table surface
-  dith(55,88,370,94,'#1a0330','#220445');
-  ctx.fillStyle='#ffd700';
-  ctx.fillRect(55,88,370,2);ctx.fillRect(55,180,370,2);ctx.fillRect(55,88,2,94);ctx.fillRect(423,88,2,94);
-  ctx.fillStyle='#5500aa';
-  ctx.fillRect(57,90,366,1);ctx.fillRect(57,179,366,1);ctx.fillRect(57,90,1,91);ctx.fillRect(422,90,1,91);
-  // Corner gems
-  [[55,88],[421,88],[55,178],[421,178]].forEach(([gx,gy])=>{
-    ctx.fillStyle='#ffd700';ctx.fillRect(gx,gy,5,5);
-    ctx.fillStyle='#ffff88';ctx.fillRect(gx+1,gy+1,1,1);
-    ctx.fillStyle='#aa8800';ctx.fillRect(gx+3,gy+3,2,2);
-  });
-  // Center mandala
-  const mx=LW/2,my=LH/2;
-  ctx.fillStyle='#2d0050';ctx.fillRect(mx-22,my-1,44,2);ctx.fillRect(mx-1,my-22,2,44);
-  for(let d=4;d<=18;d+=4){ctx.fillStyle='#3a0060';ctx.fillRect(mx+d,my+d,1,1);ctx.fillRect(mx-d-1,my+d,1,1);ctx.fillRect(mx+d,my-d-1,1,1);ctx.fillRect(mx-d-1,my-d-1,1,1);}
-  ctx.fillStyle='#5a0088';ctx.fillRect(mx-2,my-2,4,1);ctx.fillRect(mx-1,my-2,1,4);ctx.fillRect(mx+1,my-2,1,4);ctx.fillRect(mx-2,my+1,4,1);
-}
-
-// ── LIVES BAR ─────────────────────────────────────────────────────
-function heart(x,y,col){ctx.fillStyle=col;ctx.fillRect(x+1,y,2,1);ctx.fillRect(x+5,y,2,1);ctx.fillRect(x,y+1,8,1);ctx.fillRect(x,y+2,8,1);ctx.fillRect(x+1,y+3,6,1);ctx.fillRect(x+2,y+4,4,1);ctx.fillRect(x+3,y+5,2,1);}
-
-function drawLives(){
-  ptc('LIVES',22,2,'#ff4477',1);
-  for(let i=0;i<3;i++)heart(2+i*14,9,i<G.pLives?'#ff4477':'#330011');
-  if(G.pShield){dith(2,18,44,7,'#002200','#003300');pbord(2,18,44,7,'#44ff88');ptc('SHIELD',24,19,'#44ff88',1);}
-
-  ptc('LIVES',LW-22,2,'#aa44ff',1);
-  for(let i=0;i<3;i++)heart(LW-44+i*14,9,i<G.oLives?'#aa44ff':'#220033');
-  if(G.oShield){dith(LW-46,18,44,7,'#002200','#003300');pbord(LW-46,18,44,7,'#44ff88');ptc('SHIELD',LW-24,19,'#44ff88',1);}
-}
-
-// ── HANDS DISPLAY ─────────────────────────────────────────────────
+// ── DRAW HANDS ────────────────────────────────────────────────────
 function drawHands(){
   const reveal=G.phase==='resolve'||G.phase==='gameover';
 
-  // Eros hand (top, y=33)
-  const on=G.oHand.length,osx=LW/2-on*(CW+2)/2;
-  G.oHand.forEach((c,i)=>drawCard(osx+i*(CW+2),33,c,reveal&&!c.ghost));
+  // Eros cards (small, on far side of table, centered)
+  const on=G.oHand.length;
+  const osx=LW/2-on*(SCW+2)/2;
+  G.oHand.forEach((c,i)=>drawSmCard(osx+i*(SCW+2),148,c,reveal&&!c.ghost));
   if(reveal){
     const ot=total(G.oHand);
-    ptc(ot>21?'BUST!':''+ot,LW/2,33+CH+3,ot>21?'#ff4444':'#aa44ff',ot===21?2:1);
-  } else ptc('???',LW/2,33+CH+4,'#554466',1);
+    ptc(ot>21?'BUST!':'EROS: '+ot,LW/2,172,ot>21?'#ff4444':'#aa44ff',1);
+  } else {ptc('EROS: ???',LW/2,172,'#554466',1);}
 
-  // Player hand (bottom, y=190)
-  const pn=G.pHand.length,psx=LW/2-pn*(CW+2)/2;
-  G.pHand.forEach((c,i)=>drawCard(psx+i*(CW+2),190,c,!c.ghost,G.hBtn===null&&false));
-  const pt2=total(G.pHand);
-  const pcol=pt2>21?'#ff4444':pt2===21?'#ffd700':'#ff4477';
-  ptc(pt2>21?'BUST!':''+pt2,LW/2,190+CH+4,pcol,pt2===21?2:1);
+  // Deck pile (center table, between both hands)
+  if(G.deck.length>1){drawSmCard(LW/2-SCW/2+2,184,null,false);}
+  if(G.deck.length>0){drawSmCard(LW/2-SCW/2,182,null,false);}
+  ptc(G.deck.length+'',LW/2,205,'#443355',1);
+
+  // Player cards (large, close up, bottom)
+  const pn=G.pHand.length;
+  const psx=LW/2-pn*(LCW+3)/2;
+  G.pHand.forEach((c,i)=>!c.ghost&&drawLgCard(psx+i*(LCW+3),218,c));
+  const pt=total(G.pHand);
+  const pc2=pt>21?'#ff4444':pt===21?'#ffd700':'#ff88cc';
+  ptc(pt>21?'BUST!':pt===21?'21! PERFECT!':'YOU: '+pt,LW/2,218+LCH+4,pc2,pt===21?2:1);
 }
 
-// ── DECK PILE ─────────────────────────────────────────────────────
-function drawDeck(){
-  if(G.deck.length>1){drawCard(LW/2-CW/2+2,LH/2-CH/2-2,null,false);}
-  if(G.deck.length>0){drawCard(LW/2-CW/2,LH/2-CH/2,null,false);}
-  ptc(G.deck.length+'',LW/2,LH/2+CH/2+4,'#554466',1);
-  ptc('DECK',LW/2,LH/2+CH/2+10,'#443355',1);
+// ── LIVES + HUD ───────────────────────────────────────────────────
+function heart(x,y,col){ctx.fillStyle=col;ctx.fillRect(x+1,y,2,1);ctx.fillRect(x+5,y,2,1);ctx.fillRect(x,y+1,8,1);ctx.fillRect(x,y+2,8,1);ctx.fillRect(x+1,y+3,6,1);ctx.fillRect(x+2,y+4,4,1);ctx.fillRect(x+3,y+5,2,1);}
+
+function drawHUD(){
+  // Eros lives (top left, small)
+  ptc('EROS',28,2,'#aa44ff',1);
+  for(let i=0;i<3;i++)heart(2+i*12,9,i<G.oLives?'#aa44ff':'#220033');
+  if(G.oShield){fillR(2,18,42,7,'#002200');pbord(2,18,42,7,'#44ff88');ptc('SHLD',23,19,'#44ff88',1);}
+
+  // Player lives (top right, small)
+  ptc('YOU',LW-28,2,'#ff4477',1);
+  for(let i=0;i<3;i++)heart(LW-38+i*12,9,i<G.pLives?'#ff4477':'#330011');
+  if(G.pShield){fillR(LW-44,18,42,7,'#002200');pbord(LW-44,18,42,7,'#44ff88');ptc('SHLD',LW-23,19,'#44ff88',1);}
+
+  // Status bar (bottom)
+  fillR(0,LH-14,LW,14,'#06000e');pbord(0,LH-14,LW,14,'#330055');
+  const ph=G.phase==='player'?'YOUR TURN  --  DRAW OR STAND':G.phase==='opp'?'EROS IS THINKING...':G.phase==='resolve'?'ROUND OVER':'';
+  if(ph)ptc(ph,LW/2,LH-11,G.phase==='player'?'#ff88cc':'#aa44ff',1);
+
+  // Message (center screen)
+  if(G.msgT>0){
+    ctx.globalAlpha=Math.min(1,G.msgT/20);
+    ptc(G.msg,LW/2,210,'#ff88cc',1);
+    ctx.globalAlpha=1;
+  }
+
+  // Wild flash overlay
+  if(G.wildFlash&&G.wildFlash.t>0){
+    ctx.globalAlpha=G.wildFlash.t/35*.35;ctx.fillStyle=G.wildFlash.col;ctx.fillRect(0,0,LW,LH);
+    ctx.globalAlpha=1;G.wildFlash.t--;
+  }
 }
 
 // ── BUTTONS ──────────────────────────────────────────────────────
 function getBtns(){
   if(G.phase!=='player')return[];
-  return[
-    {id:'draw', label:'DRAW',  x:LW/2-58,y:LH-20,w:48,h:14,col:'#3d0077'},
-    {id:'stand',label:'STAND', x:LW/2+10,y:LH-20,w:48,h:14,col:'#550022'},
-  ];
+  return[{id:'draw',label:'DRAW',x:LW/2-58,y:LH-12,w:50,h:12,col:'#3d0077'},{id:'stand',label:'STAND',x:LW/2+8,y:LH-12,w:50,h:12,col:'#550022'}];
 }
 function btnAt(mx,my){
-  if(G.phase==='menu'    &&mx>=LW/2-52&&mx<LW/2+52&&my>=195&&my<210)return'start';
-  if(G.phase==='gameover'&&mx>=LW/2-52&&mx<LW/2+52&&my>=195&&my<210)return'restart';
+  if(G.phase==='menu'    &&mx>=LW/2-55&&mx<LW/2+55&&my>=210&&my<224)return'start';
+  if(G.phase==='gameover'&&mx>=LW/2-55&&mx<LW/2+55&&my>=210&&my<224)return'restart';
   for(const b of getBtns())if(mx>=b.x&&mx<b.x+b.w&&my>=b.y&&my<b.y+b.h)return b.id;
   return null;
 }
 
-// ── WILD FLASH OVERLAY ────────────────────────────────────────────
-function drawWildFlash(){
-  if(!G.wildFlash||G.wildFlash.t<=0)return;
-  ctx.globalAlpha=G.wildFlash.t/30*.4;
-  ctx.fillStyle=G.wildFlash.col;ctx.fillRect(0,0,LW,LH);
-  ctx.globalAlpha=1;
-  G.wildFlash.t--;
-}
-
 // ── MENU ─────────────────────────────────────────────────────────
 function drawMenu(){
-  drawBG();
-  // Title banner
-  dith(15,5,450,22,'#1a0035','#280055');pbord(15,5,450,22,'#ffd700');
-  ptc("CUPID'S 21",LW/2,9,'#ff88cc',2);
-
-  // Characters facing each other
-  drawChar(90,110,'idle',G.frame%60,false);
-  drawChar(390,110,'idle',G.frame%60,true);
-  ptc('VS',LW/2,104,'#ffd700',2);
-
-  // Rules
-  dith(20,145,440,44,'#0a0020','#130030');pbord(20,145,440,44,'#5500aa');
-  ptc('GET CLOSEST TO 21 WITHOUT GOING OVER',LW/2,149,'#ccaaff',1);
-  ptc('DRAW A CARD OR STAND EACH TURN',LW/2,157,'#aaaacc',1);
-  ptc('WILD CARDS: +5 CURSE  SWAP HANDS',LW/2,165,'#ff88ff',1);
-  ptc('SHIELD FROM BUST  STEAL  PEEK',LW/2,173,'#ff88ff',1);
-  ptc('LOSE A ROUND = EROS SHOOTS AN ARROW  3 HITS = DEAD',LW/2,181,'#ff4477',1);
-
-  pbtn('> CLICK TO START <',LW/2-52,196,104,14,G.hBtn==='start','#5500aa');
-  drawFlt();drawPts();
+  drawRoom();
+  // Draw idle Eros
+  drawEros('idle',0);
+  // Title overlay
+  fillR(60,10,360,20,'#1a003a');pbord(60,10,360,20,'#ffd700');
+  ptc("CUPID'S 21",LW/2,14,'#ff88cc',2);
+  // Rules panel (on table surface)
+  fillR(40,148,400,58,'#0a001e');pbord(40,148,400,58,'#5500aa');
+  ptc('SIT ACROSS EROS. CLOSEST TO 21 WINS',LW/2,152,'#ccaaff',1);
+  ptc('DRAW OR STAND EACH TURN',LW/2,160,'#aaaacc',1);
+  ptc('WILD CARDS:  +5 CURSE  SWAP  SHIELD',LW/2,170,'#ff88ff',1);
+  ptc('STEAL A CARD  PEEK AT EROS HAND',LW/2,178,'#ff88ff',1);
+  ptc('LOSE A ROUND = EROS FIRES AN ARROW AT YOU',LW/2,188,'#ff4477',1);
+  ptc('3 ARROWS = GAME OVER',LW/2,196,'#ff4477',1);
+  pbtn('> PLAY <',LW/2-55,212,110,13,G.hBtn==='start','#5500aa');
+  drawPts();drawFlt();
 }
 
 // ── GAME OVER ─────────────────────────────────────────────────────
 function drawGameOver(){
-  drawBG();
+  drawRoom();
   const won=G.pLives>0;
-  dith(15,5,450,22,'#1a0035','#280055');pbord(15,5,450,22,won?'#ff4477':'#aa44ff');
-  ptc(won?'YOU WIN!':'YOU DIED',LW/2,9,won?'#ff88cc':'#aa44ff',2);
-  drawChar(LW/2-(won?35:-5),110,won?'win':'hit',40,false);
-  drawChar(LW/2+(won?5:-35),110,won?'hit':'win',40,true);
-  ptc(won?'EROS IS DEFEATED! LOVE WINS!':'CUPID IS DEAD. EROS TRIUMPHS.',LW/2,158,'#ffd700',1);
-  ptc(won?'HEARTS PIERCED ACROSS THE LAND':'YOUR ARROWS NEVER FOUND THEIR MARK',LW/2,167,'#664488',1);
-  pbtn('> PLAY AGAIN <',LW/2-52,196,104,14,G.hBtn==='restart','#5500aa');
-  drawFlt();drawPts();
+  drawEros(won?'hit':'win',40);
+  if(!won) drawStuckOnEros(); // shouldn't be here but just in case
+  fillR(60,10,360,20,'#1a003a');pbord(60,10,360,20,won?'#ff4477':'#aa44ff');
+  ptc(won?'YOU WIN!':'YOU DIED',LW/2,14,won?'#ff88cc':'#aa44ff',2);
+  fillR(40,155,400,54,'#0a001e');pbord(40,155,400,54,won?'#ff4477':'#aa44ff');
+  ptc(won?'EROS IS DEFEATED. LOVE PREVAILS.':'CUPID FELL. EROS LAUGHS.', LW/2,160,'#ffd700',1);
+  ptc(won?'ARROWS OF LOVE FOUND THEIR MARK':'YOUR HAND NEVER REACHED 21', LW/2,170,'#664488',1);
+  ptc('LIVES REMAINING: '+G.pLives+'/3',LW/2,182,'#ff4477',1);
+  ptc('ARROWS HIT: '+(3-G.pLives),LW/2,190,'#aa44ff',1);
+  pbtn('> PLAY AGAIN <',LW/2-55,212,110,13,G.hBtn==='restart','#5500aa');
+  drawPts();drawFlt();
 }
 
 // ── INPUT ─────────────────────────────────────────────────────────
@@ -575,54 +632,41 @@ function loop(){
   requestAnimationFrame(loop);
   G.frame++;G.pStateF++;G.oStateF++;
   tickPts();tickFlt();tickArrow();
-  if(G.msgT>0)G.msgT--;
-  if(screenShake>0)screenShake--;
-  // auto-reset animation states
+  if(G.msgT>0)G.msgT--;if(screenShake>0)screenShake--;
   if(G.pState==='draw'&&G.pStateF>18){G.pState='idle';G.pStateF=0;}
   if(G.oState==='draw'&&G.oStateF>18){G.oState='idle';G.oStateF=0;}
   if(G.pState==='hit' &&G.pStateF>35){G.pState='idle';G.pStateF=0;}
   if(G.oState==='hit' &&G.oStateF>35){G.oState='idle';G.oStateF=0;}
-  if(G.pState==='win' &&G.pStateF>50){G.pState='idle';G.pStateF=0;}
-  if(G.oState==='win' &&G.oStateF>50){G.oState='idle';G.oStateF=0;}
-
+  if(G.pState==='win' &&G.pStateF>55){G.pState='idle';G.pStateF=0;}
+  if(G.oState==='win' &&G.oStateF>55){G.oState='idle';G.oStateF=0;}
   if(G.phase==='opp')oppTick();
   if(G.phase==='menu')   {drawMenu();   return;}
   if(G.phase==='gameover'){drawGameOver();return;}
 
-  // Screen shake translate
-  const sx=screenShake>0?(Math.random()-.5)*5|0:0;
-  const sy=screenShake>0?(Math.random()-.5)*3|0:0;
+  // Screen shake
+  const sx=screenShake>0?(Math.random()-.5)*6|0:0;
+  const sy=screenShake>0?(Math.random()-.5)*4|0:0;
   ctx.save();ctx.translate(sx,sy);
 
-  drawBG();
-  drawLives();
-  drawChar(60,128,G.pState,G.pStateF,false);
-  drawChar(420,128,G.oState,G.oStateF,true);
-  drawStuck();
+  drawRoom();
+  drawEros(G.oState,G.oStateF);
+  drawStuckOnEros();
   drawHands();
-  drawDeck();
 
-  // Buttons
+  // Arrow animation
+  if(ARW&&!ARW.done){
+    if(ARW.fromRight)drawIncomingArrow(ARW.t);
+    else             drawOutgoingArrow(ARW.t);
+  }
+
   getBtns().forEach(b=>pbtn(b.label,b.x,b.y,b.w,b.h,G.hBtn===b.id,b.col));
-
-  // Status bar
-  dith(0,LH-12,LW,12,'#080018','#0e0020');
-  const phl=G.phase==='player'?'YOUR TURN  DRAW OR STAND':G.phase==='opp'?'EROS IS THINKING...':G.phase==='resolve'?'ROUND OVER':'';
-  if(phl)ptc(phl,LW/2,LH-10,G.phase==='player'?'#ff4477':'#aa44ff',1);
-  pt('P:'+total(G.pHand),4,LH-10,'#ff4477',1);
-  pt('E:'+(G.phase==='resolve'||G.phase==='gameover'?total(G.oHand):'??'),LW-40,LH-10,'#aa44ff',1);
-
-  // Message
-  if(G.msgT>0){ctx.globalAlpha=Math.min(1,G.msgT/20);ptc(G.msg,LW/2,LH/2-8,'#ff88cc',1);ctx.globalAlpha=1;}
-
-  drawWildFlash();
-  drawArrow();
+  drawStuckOnPlayer();
+  drawHUD();
   drawFlt();drawPts();
   ctx.restore();
 }
 
-// Ambient sparkle on menu/gameover
-setInterval(()=>{if(G.phase==='menu'||G.phase==='gameover')spark(Math.random()*LW|0,Math.random()*LH|0,2,Math.random()>.5?'#ff4488':'#aa44ff');},320);
+setInterval(()=>{if(G.phase==='menu'||G.phase==='gameover'){spark(80+Math.random()*320|0,Math.random()*130|0,2,Math.random()>.5?'#ff4488':'#aa44ff');}},350);
 
 loop();
 </script>

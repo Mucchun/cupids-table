@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Cupid's Table</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;display:flex;justify-content:center;align-items:center;width:100vw;height:100vh;overflow:hidden}
+canvas{image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// CUPID'S TABLE — BioCraftEd Vibecoding Jam 2026
+// Pixel art tile card game: Balatro scoring × Okey draw × Mystical table
+
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+const LW=480,LH=270;         // logical (pixel-art) resolution
+C.width=LW;C.height=LH;
+ctx.imageSmoothingEnabled=false;
+
+function resize(){
+  const s=Math.min(innerWidth/LW,innerHeight/LH);
+  C.style.width=LW*s+'px';C.style.height=LH*s+'px';C._s=s;
+}
+addEventListener('resize',resize);resize();
+
+// ── 4×6 BITMAP FONT ───────────────────────────────────────────────
+// Each char: 6 rows, each row is 4 bits (MSB = leftmost pixel)
+const BF={
+  '0':[6,9,9,9,9,6],'1':[2,6,2,2,2,7],'2':[6,9,1,2,4,15],
+  '3':[6,9,3,1,9,6],'4':[1,3,5,9,15,1],'5':[15,8,14,1,9,6],
+  '6':[6,8,14,9,9,6],'7':[15,1,2,4,4,4],'8':[6,9,6,9,9,6],
+  '9':[6,9,9,7,1,6],'A':[6,9,15,9,9,9],'B':[14,9,14,9,9,14],
+  'C':[6,9,8,8,9,6],'D':[14,9,9,9,9,14],'E':[15,8,14,8,8,15],
+  'F':[15,8,14,8,8,8],'G':[6,9,8,11,9,6],'H':[9,9,15,9,9,9],
+  'I':[7,2,2,2,2,7],'J':[1,1,1,1,9,6],'K':[9,10,12,10,9,9],
+  'L':[8,8,8,8,8,15],'M':[9,15,15,9,9,9],'N':[9,13,11,9,9,9],
+  'O':[6,9,9,9,9,6],'P':[14,9,9,14,8,8],'Q':[6,9,9,11,9,7],
+  'R':[14,9,14,10,9,9],'S':[7,8,6,1,1,14],'T':[15,2,2,2,2,2],
+  'U':[9,9,9,9,9,6],'V':[9,9,9,9,6,6],'W':[9,9,9,15,15,9],
+  'X':[9,6,6,6,6,9],'Y':[9,9,6,2,2,2],'Z':[15,1,2,4,8,15],
+  ' ':[0,0,0,0,0,0],'!':[2,2,2,2,0,2],'.':[0,0,0,0,0,2],
+  ':':[0,2,0,0,2,0],'/':[1,1,2,2,4,4],'+':[0,2,7,2,0,0],
+  '-':[0,0,7,0,0,0],'>':[4,2,1,1,2,4],'<':[1,2,4,4,2,1],
+  '=':[0,15,0,15,0,0],'?':[6,9,2,2,0,2],"'":[2,2,0,0,0,0],
+  'x':[0,0,9,6,6,9],'*':[0,5,2,5,0,0],'#':[5,15,5,5,15,5],
+};
+function pc(ch,x,y,col,sc=1){
+  const rows=BF[ch.toUpperCase()]||BF[' '];
+  ctx.fillStyle=col;
+  rows.forEach((r,dy)=>{for(let dx=0;dx<4;dx++) if(r&(1<<(3-dx))) ctx.fillRect(x+dx*sc,y+dy*sc,sc,sc);});
+}
+function pt(str,x,y,col,sc=1){[...str].forEach((ch,i)=>pc(ch,x+i*(4*sc+sc),y,col,sc));}
+function ptw(str,sc=1){return str.length*(4*sc+sc);}
+function ptc(str,cx,y,col,sc=1){pt(str,Math.round(cx-ptw(str,sc)/2),y,col,sc);}
+
+// ── SUIT PIXEL MAPS (4×5) ─────────────────────────────────────────
+// 4-bit row, 5 rows. Heart, Arrow, Rose, Dove
+const SP=[
+  [5,15,15,6,2],   // ♥ Heart
+  [2,7,15,7,2],    // ↑ Arrow
+  [5,15,6,15,5],   // ✿ Rose
+  [6,14,7,14,4],   // ❧ Dove
+];
+const SC=['#ff4477','#ffaa22','#ff77bb','#55ddcc'];
+const SN=['HEART','ARROW','ROSE','DOVE'];
+
+function dsuit(sx,sy,s,col){
+  ctx.fillStyle=col;
+  SP[s].forEach((r,dy)=>{for(let dx=0;dx<4;dx++) if(r&(1<<(3-dx))) ctx.fillRect(sx+dx,sy+dy,1,1);});
+}
+
+// ── TILE DRAW (TW=14, TH=20) ─────────────────────────────────────
+const TW=14,TH=20;
+
+function tile(x,y,t,face=true,sel=false,hov=false){
+  const yo=sel?-4:hov?-2:0; y+=yo;
+  if(!face){
+    ctx.fillStyle='#1a0035'; ctx.fillRect(x,y,TW,TH);
+    ctx.fillStyle='#2d0055'; ctx.fillRect(x+1,y+1,TW-2,TH-2);
+    ctx.fillStyle='#5500aa';
+    for(let dy=2;dy<TH-2;dy+=3) for(let dx=2;dx<TW-2;dx+=3) ctx.fillRect(x+dx,y+dy,1,1);
+    pborder(x,y,TW,TH,'#440088');
+    return;
+  }
+  ctx.fillStyle=t.wild?'#2a004a':'#e8d8ff'; ctx.fillRect(x,y,TW,TH);
+  const bc=sel?'#ffdd00':t.wild?'#ff00ff':SC[t.s];
+  pborder(x,y,TW,TH,bc);
+  if(sel){pborder(x+1,y+1,TW-2,TH-2,'#ffaa00');}
+  if(t.wild){
+    dsuit(x+5,y+6,0,'#ff88ff');
+    pt('W',x+5,y+13,'#dd66ff',1);
+  } else {
+    dsuit(x+1,y+2,t.s,SC[t.s]);
+    pc(String(t.v),x+5,y+7,SC[t.s],1);
+    dsuit(x+8,y+13,t.s,SC[t.s]);
+  }
+}
+
+function pborder(x,y,w,h,col){
+  ctx.fillStyle=col;
+  ctx.fillRect(x,y,w,1);ctx.fillRect(x,y+h-1,w,1);
+  ctx.fillRect(x,y,1,h);ctx.fillRect(x+w-1,y,1,h);
+}
+
+// ── PIXEL BUTTON ─────────────────────────────────────────────────
+function pbtn(label,x,y,w,h,hov,col='#3d0077'){
+  ctx.fillStyle='#0a0018'; ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=hov?lc(col):col; ctx.fillRect(x+1,y+1,w-2,h-2);
+  pborder(x,y,w,h,hov?'#ffdd00':'#6600aa');
+  const tw=ptw(label,1);
+  pt(label,Math.round(x+(w-tw)/2),Math.round(y+(h-6)/2),hov?'#ffee88':'#ccaaff',1);
+}
+function lc(c){const m={'#3d0077':'#5500aa','#2a0055':'#3d0077','#005533':'#007744','#550022':'#880033','#220033':'#440055'};return m[c]||'#5500aa';}
+
+// ── DITHER FILL ───────────────────────────────────────────────────
+function dith(x,y,w,h,c1,c2){
+  ctx.fillStyle=c1;ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=c2;
+  for(let dy=0;dy<h;dy++) for(let dx=dy%2;dx<w;dx+=2) ctx.fillRect(x+dx,y+dy,1,1);
+}
+
+// ── EROS SPRITE (12×18) ───────────────────────────────────────────
+function eros(cx,cy){
+  const x=cx-6,y=cy-9;
+  // Wings
+  ctx.fillStyle='#dde8ff';
+  [[0,3,3],[0,4,4],[0,5,5],[0,6,4],[1,7,3],  // left
+   [9,3,3],[9,4,4],[8,5,5],[9,6,4],[9,7,3]   // right
+  ].forEach(([dx,dy,w])=>ctx.fillRect(x+dx,y+dy,w,1));
+  ctx.fillStyle='#bbbbee';
+  ctx.fillRect(x+1,y+4,2,2);ctx.fillRect(x+9,y+4,2,2);
+  // Halo
+  ctx.fillStyle='#ffd700';
+  ctx.fillRect(x+4,y,4,1);ctx.fillRect(x+3,y+1,1,1);ctx.fillRect(x+8,y+1,1,1);
+  // Hair
+  ctx.fillStyle='#ffcc44';
+  ctx.fillRect(x+3,y+1,6,2);ctx.fillRect(x+2,y+2,1,2);ctx.fillRect(x+9,y+2,1,2);
+  // Head
+  ctx.fillStyle='#ffd8a8'; ctx.fillRect(x+3,y+3,6,5);
+  // Blush
+  ctx.fillStyle='#ffaaaa'; ctx.fillRect(x+3,y+6,1,1);ctx.fillRect(x+8,y+6,1,1);
+  // Eyes
+  ctx.fillStyle='#330022'; ctx.fillRect(x+4,y+4,1,2);ctx.fillRect(x+7,y+4,1,2);
+  // Mouth
+  ctx.fillStyle='#cc6677'; ctx.fillRect(x+5,y+7,2,1);
+  // Tunic
+  ctx.fillStyle='#ff88cc'; ctx.fillRect(x+3,y+8,6,6);
+  ctx.fillStyle='#cc44aa'; ctx.fillRect(x+3,y+10,6,1);
+  // Arms/hands
+  ctx.fillStyle='#ffd8a8'; ctx.fillRect(x+1,y+9,2,3);ctx.fillRect(x+9,y+9,2,3);
+  // Bow (held left)
+  ctx.fillStyle='#885522'; ctx.fillRect(x+0,y+8,1,5);
+  ctx.fillStyle='#ccaa55'; ctx.fillRect(x+1,y+10,1,1);
+  // Arrow
+  ctx.fillStyle='#ccaa55'; ctx.fillRect(x+1,y+9,8,1);
+  ctx.fillStyle='#aaaaaa'; ctx.fillRect(x+9,y+8,1,1);ctx.fillRect(x+9,y+10,1,1);ctx.fillRect(x+10,y+9,1,1);
+  // Legs
+  ctx.fillStyle='#ffd8a8'; ctx.fillRect(x+4,y+14,2,3);ctx.fillRect(x+7,y+14,2,3);
+  // Sandals
+  ctx.fillStyle='#885522'; ctx.fillRect(x+3,y+17,3,1);ctx.fillRect(x+7,y+17,3,1);
+}
+
+// ── PLAYER SPRITE (12×18) ─────────────────────────────────────────
+function plyr(cx,cy){
+  const x=cx-6,y=cy-9;
+  ctx.fillStyle='#331100'; ctx.fillRect(x+2,y,8,3);ctx.fillRect(x+1,y+1,1,4);ctx.fillRect(x+10,y+1,1,4);
+  ctx.fillStyle='#ffd8a8'; ctx.fillRect(x+2,y+2,8,6);
+  ctx.fillStyle='#222244'; ctx.fillRect(x+4,y+4,1,2);ctx.fillRect(x+7,y+4,1,2);
+  ctx.fillStyle='#ffaaaa'; ctx.fillRect(x+3,y+6,1,1);ctx.fillRect(x+8,y+6,1,1);
+  ctx.fillStyle='#5500aa'; ctx.fillRect(x+2,y+8,8,7);
+  ctx.fillStyle='#7700cc'; ctx.fillRect(x+4,y+8,4,2);
+  ctx.fillStyle='#ffd8a8'; ctx.fillRect(x,y+9,2,4);ctx.fillRect(x+10,y+9,2,4);
+  ctx.fillStyle='#221133'; ctx.fillRect(x+2,y+15,3,2);ctx.fillRect(x+7,y+15,3,2);
+  ctx.fillStyle='#885522'; ctx.fillRect(x+2,y+17,3,1);ctx.fillRect(x+7,y+17,3,1);
+}
+
+// ── PARTICLES ────────────────────────────────────────────────────
+let PTS=[];
+function spark(x,y,n=8,col='#ff4488'){
+  for(let i=0;i<n;i++) PTS.push({x,y,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3-1,life:1,dec:.022+Math.random()*.02,col,sz:1+(Math.random()>0.5?1:0)});
+}
+function tickPts(){PTS=PTS.filter(p=>p.life>0);PTS.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.06;p.life-=p.dec;});}
+function drawPts(){PTS.forEach(p=>{ctx.fillStyle=p.col;ctx.globalAlpha=p.life;ctx.fillRect(p.x|0,p.y|0,p.sz,p.sz);});ctx.globalAlpha=1;}
+
+// ── FLOATING SCORES ───────────────────────────────────────────────
+let FLT=[];
+function flt(txt,x,y,col,sc=1){FLT.push({txt,x,y,col,sc,life:80});}
+function tickFlt(){FLT=FLT.filter(f=>f.life>0);FLT.forEach(f=>{f.y-=.5;f.life--;});}
+function drawFlt(){FLT.forEach(f=>{ctx.globalAlpha=f.life/80;ptc(f.txt,f.x|0,f.y|0,f.col,f.sc);});ctx.globalAlpha=1;}
+
+// ── DECK + SCORING ────────────────────────────────────────────────
+function mkDeck(){
+  let d=[];
+  for(let s=0;s<4;s++) for(let v=1;v<=9;v++){d.push({s,v,wild:false});d.push({s,v,wild:false});}
+  d.push({wild:true});d.push({wild:true});
+  return shuf(d);
+}
+function shuf(a){for(let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function score(tiles){
+  if(tiles.length<3)return{ok:false};
+  const nw=tiles.filter(t=>!t.wild),wc=tiles.length-nw.length;
+  if(!nw.length)return{ok:false};
+  if(nw.every(t=>t.v===nw[0].v)){
+    const chips=nw[0].v*10*tiles.length,mult=2+wc;
+    return{ok:true,name:'LOVE SET',chips,mult,score:chips*mult};
+  }
+  const s0=nw[0].s;
+  if(nw.every(t=>t.s===s0)){
+    const vals=nw.map(t=>t.v).sort((a,b)=>a-b);
+    let gaps=0;for(let i=1;i<vals.length;i++) gaps+=vals[i]-vals[i-1]-1;
+    if(gaps<=wc){
+      const sum=tiles.reduce((a,t)=>a+(t.wild?5:t.v),0);
+      const chips=sum*8,mult=parseFloat((1.5+tiles.length*.4+wc*.5).toFixed(1));
+      return{ok:true,name:tiles.length>=5?'CUPID STRT':'RUN',chips,mult,score:Math.round(chips*mult)};
+    }
+  }
+  if(nw.every(t=>t.s===s0)&&tiles.length>=4){
+    const chips=tiles.reduce((a,t)=>a+(t.wild?5:t.v),0)*12,mult=parseFloat((2.5+wc*.8).toFixed(1));
+    return{ok:true,name:'HEARTS DSR',chips,mult,score:Math.round(chips*mult)};
+  }
+  return{ok:false};
+}
+
+// ── COMBOS HELPER (AI) ───────────────────────────────────────────
+function combs(n,k){const res=[],c=[];function bt(s){if(c.length===k){res.push([...c]);return;}for(let i=s;i<n;i++){c.push(i);bt(i+1);c.pop();}}bt(0);return res;}
+
+// ── GAME STATE ───────────────────────────────────────────────────
+let G={phase:'menu',deck:[],disc:[],ph:[],oh:[],pScore:0,oScore:0,target:1000,round:1,sel:[],canDraw:true,msg:'',msgT:0,oppT:0,hTile:-1,hBtn:null,layout:null};
+function msg(m,t=100){G.msg=m;G.msgT=t;}
+
+function initRound(){G.deck=mkDeck();G.disc=[];G.ph=[];G.oh=[];G.sel=[];G.canDraw=true;G.msg='';G.msgT=0;FLT=[];for(let i=0;i<7;i++){G.ph.push(G.deck.pop());G.oh.push(G.deck.pop());}G.disc.push(G.deck.pop());G.phase='play';}
+function newGame(){G.pScore=0;G.oScore=0;G.round=1;initRound();}
+
+// ── ACTIONS ──────────────────────────────────────────────────────
+function actDraw(fd){
+  if(!G.canDraw)return;
+  if(fd&&G.disc.length){G.ph.push(G.disc.pop());spark(244,130,6,'#ff4488');}
+  else if(!fd&&G.deck.length){G.ph.push(G.deck.pop());spark(220,130,6,'#aa44ff');}
+  else return;
+  G.canDraw=false;G.sel=[];
+}
+function actPlay(){
+  if(G.canDraw||G.sel.length<3)return;
+  const sc=score(G.sel.map(i=>G.ph[i]));
+  if(!sc.ok){msg('INVALID!');return;}
+  [...G.sel].sort((a,b)=>b-a).forEach(i=>G.ph.splice(i,1));
+  G.sel=[];G.pScore+=sc.score;
+  flt('+'+sc.score+'!',LW/2,LH/2-5,SC[0],1);
+  flt(sc.chips+'x'+sc.mult,LW/2,LH/2+8,'#ffd700',1);
+  spark(LW/2,LH/2,20,SC[0]);spark(LW/2,LH/2,10,'#ffd700');
+  msg(sc.name+' +'+sc.score+'!',110);
+  if(G.pScore>=G.target){setTimeout(()=>G.phase='gameover',1200);return;}
+  if(!G.ph.length)for(let i=0;i<4&&G.deck.length;i++)G.ph.push(G.deck.pop());
+}
+function actDiscard(){
+  if(G.canDraw||G.sel.length!==1)return;
+  G.disc.push(G.ph.splice(G.sel[0],1)[0]);G.sel=[];
+  if(!G.ph.length)for(let i=0;i<5&&G.deck.length;i++)G.ph.push(G.deck.pop());
+  if(G.deck.length<3&&G.disc.length>1){const t=G.disc.pop();G.deck=shuf([...G.disc]);G.disc=[t];}
+  G.phase='opp';G.oppT=55+Math.random()*65|0;
+}
+
+// ── OPPONENT AI ──────────────────────────────────────────────────
+function oppTick(){
+  if(G.oppT>0){G.oppT--;return;}
+  if(G.deck.length)G.oh.push(G.deck.pop());
+  let best=null,bsc=0,bix=[];
+  for(let sz=5;sz>=3;sz--){
+    for(const c of combs(G.oh.length,sz)){const sc=score(c.map(i=>G.oh[i]));if(sc.ok&&sc.score>bsc){bsc=sc.score;best=sc;bix=c;}}
+    if(bsc>80)break;
+  }
+  if(bsc>=55&&best){
+    [...bix].sort((a,b)=>b-a).forEach(i=>G.oh.splice(i,1));
+    G.oScore+=bsc;flt('EROS +'+bsc,LW/2,70,'#aa44ff',1);spark(LW/2,65,12,'#aa44ff');
+    if(G.oScore>=G.target){setTimeout(()=>G.phase='gameover',1200);return;}
+    while(G.oh.length<3&&G.deck.length)G.oh.push(G.deck.pop());
+  }
+  let wi=0,wb=Infinity;
+  for(let i=0;i<G.oh.length;i++){
+    let pot=0;
+    for(let j=0;j<G.oh.length;j++)for(let k=j+1;k<G.oh.length;k++){if(j===i||k===i)continue;if(score([G.oh[i],G.oh[j],G.oh[k]]).ok)pot++;}
+    if(pot<wb){wb=pot;wi=i;}
+  }
+  if(G.oh.length)G.disc.push(G.oh.splice(wi,1)[0]);
+  if(G.deck.length<3&&G.disc.length>1){const t=G.disc.pop();G.deck=shuf([...G.disc]);G.disc=[t];}
+  G.phase='play';G.canDraw=true;G.sel=[];
+}
+
+// ── HIT TEST ─────────────────────────────────────────────────────
+function tileAt(mx,my){
+  if(!G.layout)return -1;
+  const{sx,sp,y,n}=G.layout;
+  for(let i=n-1;i>=0;i--){
+    const tx=sx+i*sp,ty=y+(G.sel.includes(i)?-4:0);
+    if(mx>=tx&&mx<tx+TW&&my>=ty&&my<ty+TH)return i;
+  }
+  return -1;
+}
+function getBtns(){
+  if(G.phase!=='play')return[];
+  const btns=[],bx=363;
+  if(G.canDraw){
+    btns.push({id:'draw', label:'DRAW',    x:bx,y:115,w:76,h:12,col:'#3d0077'});
+    if(G.disc.length)btns.push({id:'ddisc',label:'TAKE DSC',x:bx,y:130,w:76,h:12,col:'#2a0055'});
+  } else {
+    const sc=G.sel.length>=3?score(G.sel.map(i=>G.ph[i])):{ok:false};
+    if(sc.ok)btns.push({id:'play',label:'> PLAY <',x:bx,y:115,w:76,h:14,col:'#005533'});
+    if(G.sel.length===1)btns.push({id:'disc',label:'DISCARD',x:bx,y:132,w:76,h:12,col:'#550022'});
+    btns.push({id:'clr',label:'CLEAR',x:bx,y:148,w:76,h:11,col:'#220033'});
+  }
+  return btns;
+}
+function btnAt(mx,my){
+  if(G.phase==='menu'    &&mx>=LW/2-40&&mx<LW/2+40&&my>=164&&my<176)return'start';
+  if(G.phase==='gameover'&&mx>=LW/2-40&&mx<LW/2+40&&my>=158&&my<170)return'restart';
+  for(const b of getBtns())if(mx>=b.x&&mx<b.x+b.w&&my>=b.y&&my<b.y+b.h)return b.id;
+  const py=LH/2-TH/2;
+  if(G.phase==='play'){
+    if(mx>=213&&mx<213+TW&&my>=py&&my<py+TH)return'draw';
+    if(mx>=230&&mx<230+TW&&my>=py&&my<py+TH)return'ddisc';
+  }
+  return null;
+}
+
+// ── TABLE BACKGROUND ─────────────────────────────────────────────
+const STARS=[];
+for(let i=0;i<60;i++) STARS.push([Math.random()*LW|0,Math.random()*LH|0,Math.random()>.7?2:1,Math.random()*.8+.2]);
+
+function drawTable(){
+  ctx.fillStyle='#06000e';ctx.fillRect(0,0,LW,LH);
+  // Stars
+  STARS.forEach(([sx,sy,sz,br])=>{
+    ctx.fillStyle=br>.6?'#ffffff':'#886699';
+    ctx.fillRect(sx,sy,sz,sz);
+    if(sz===2&&br>.8){ctx.fillStyle='#aa88ff';ctx.fillRect(sx-1,sy,1,1);ctx.fillRect(sx+2,sy,1,1);}
+  });
+  // Felt table
+  dith(32,46,416,176,'#1a0330','#220445');
+  // Table border: gold outer, purple inner
+  ctx.fillStyle='#ffd700';
+  ctx.fillRect(32,46,416,2);ctx.fillRect(32,220,416,2);ctx.fillRect(32,46,2,176);ctx.fillRect(446,46,2,176);
+  ctx.fillStyle='#5500aa';
+  ctx.fillRect(34,48,412,1);ctx.fillRect(34,219,412,1);ctx.fillRect(34,48,1,173);ctx.fillRect(445,48,1,173);
+  // Corner gems
+  [[32,46],[444,46],[32,218],[444,218]].forEach(([cx,cy])=>{
+    ctx.fillStyle='#ffd700';ctx.fillRect(cx,cy,5,5);
+    ctx.fillStyle='#ffff88';ctx.fillRect(cx+1,cy+1,1,1);
+    ctx.fillStyle='#aa8800';ctx.fillRect(cx+3,cy+3,2,2);
+  });
+  // Center ornament
+  const mx=LW/2,my=LH/2;
+  ctx.fillStyle='#3a005a';
+  ctx.fillRect(mx-24,my-1,48,2);ctx.fillRect(mx-1,my-24,2,48);
+  ctx.fillStyle='#4a006a';
+  for(let d=3;d<=20;d+=4){ctx.fillRect(mx+d,my+d,1,1);ctx.fillRect(mx-d-1,my+d,1,1);ctx.fillRect(mx+d,my-d-1,1,1);ctx.fillRect(mx-d-1,my-d-1,1,1);}
+  // Center heart
+  dsuit(mx-2,my-2,0,'#3a005a');
+}
+
+// ── SCORE BARS ────────────────────────────────────────────────────
+function drawScoreBars(){
+  const by=56,bh=148,bw=7;
+  [[36,G.pScore,SC[0],'P'],[443,G.oScore,'#aa44ff','E']].forEach(([bx,sc,col,lbl])=>{
+    ctx.fillStyle='#080015';ctx.fillRect(bx,by,bw,bh);
+    const pct=Math.min(1,sc/G.target);
+    ctx.fillStyle=col;ctx.fillRect(bx,by+bh*(1-pct)|0,bw,(bh*pct)|0);
+    // Tick marks every 20%
+    ctx.fillStyle='#330055';
+    for(let t=1;t<5;t++)ctx.fillRect(bx,by+bh*t/5|0,bw,1);
+    pborder(bx,by,bw,bh,'#440077');
+    pc(lbl,bx+1,by+bh+2,col);
+  });
+}
+
+// ── OPPONENT ─────────────────────────────────────────────────────
+function drawOpp(){
+  const cx=LW/2,ty=4;
+  // Avatar box
+  dith(cx-10,ty,20,22,'#1a0035','#220044');
+  pborder(cx-10,ty,20,22,'#5500aa');
+  eros(cx,ty+11);
+  ptc('EROS',cx,ty+25,'#ffd700',1);
+  ptc(G.oScore+'',cx,ty+33,'#cc88ff',1);
+  if(G.phase==='opp'){const d='.'+(Date.now()/300|0)%2?'..':'...';ptc(d,cx,ty+41,'#ff88cc',1);}
+}
+
+function drawOppHand(){
+  const n=G.oh.length;if(!n)return;
+  const sp=Math.min(TW+1,Math.floor(240/Math.max(n,1)));
+  const tot=(n-1)*sp+TW,sx=LW/2-tot/2,y=50;
+  for(let i=0;i<n;i++)tile(sx+i*sp,y,null,false);
+}
+
+// ── DRAW/DISCARD PILES ───────────────────────────────────────────
+function drawPiles(){
+  const py=LH/2-TH/2;
+  const dpx=213;
+  if(G.deck.length){
+    tile(dpx+2,py-2,null,false);
+    tile(dpx,py,null,false);
+    ptc(G.deck.length+'',dpx+TW/2,py+TH+2,'#664488',1);
+    ptc('DRAW',dpx+TW/2,py+TH+9,'#664488',1);
+  }
+  const dsx=230;
+  if(G.disc.length){
+    tile(dsx,py,G.disc[G.disc.length-1],true);
+  } else {
+    dith(dsx,py,TW,TH,'#220040','#2d0050');
+    pborder(dsx,py,TW,TH,'#440066');
+  }
+  ptc('DISC',dsx+TW/2,py+TH+9,'#664488',1);
+}
+
+// ── PLAYER HAND ──────────────────────────────────────────────────
+function drawPHand(){
+  const n=G.ph.length;if(!n){G.layout=null;return;}
+  const sp=Math.min(TW+2,Math.floor(300/Math.max(n-1,1)));
+  const tot=Math.min(300,(n-1)*sp+TW),sx=LW/2-tot/2|0,y=LH-TH-18;
+  G.layout={sx,sp,y,n};
+  for(let i=0;i<n;i++)tile(sx+i*sp,y,G.ph[i],true,G.sel.includes(i),G.hTile===i);
+}
+
+// ── COMBO PREVIEW ────────────────────────────────────────────────
+function drawPreview(){
+  if(G.canDraw||G.sel.length<3)return;
+  const sc=score(G.sel.map(i=>G.ph[i]));
+  const bx=56,by=LH/2-14,bw=144,bh=26;
+  dith(bx,by,bw,bh,'#08001a','#100025');
+  pborder(bx,by,bw,bh,sc.ok?'#00cc44':'#cc0033');
+  if(sc.ok){
+    pt(sc.name,bx+3,by+3,'#44ff88',1);
+    pt(sc.chips+'x'+sc.mult+'='+sc.score,bx+3,by+12,'#ffd700',1);
+    pt('> PLAY! <',bx+3,by+20,'#88ff88',1);
+  } else {
+    ptc('NOT VALID',bx+bw/2,by+10,'#ff4444',1);
+  }
+}
+
+// ── MENU ─────────────────────────────────────────────────────────
+function drawMenu(){
+  ctx.fillStyle='#06000e';ctx.fillRect(0,0,LW,LH);
+  STARS.forEach(([sx,sy,sz,br])=>{ctx.fillStyle=br>.6?'#ffffff':'#886699';ctx.fillRect(sx,sy,sz,sz);});
+
+  // Title panel
+  dith(20,6,440,22,'#1a0035','#240050');
+  pborder(20,6,440,22,'#ffd700');
+  ptc("CUPID'S TABLE",LW/2,10,'#ff88cc',2);
+
+  // Sprites
+  eros(LW/2-30,68);
+  plyr(LW/2+30,68);
+
+  // Hearts between them
+  dsuit(LW/2-2,60,0,'#ff4477');
+
+  ptc('VS',LW/2,84,'#ffd700',1);
+
+  // Rules panel
+  dith(18,95,444,60,'#0a0020','#120030');
+  pborder(18,95,444,60,'#5500aa');
+  const rules=[
+    ['LOVE SET', '3+ SAME NUM  10xVAL x 2 MULT','#ff4477'],
+    ['LOVERS RUN','3+ SAME SUIT SEQ  8xSUM MULT','#55ddcc'],
+    ['HEARTS DSR','4+ SAME SUIT  12xSUM MULT',   '#ff77bb'],
+    ['CUPID WILD','FILLS ANY GAP  +0.5 MULT',    '#ff88ff'],
+  ];
+  rules.forEach(([title,desc,col],i)=>{
+    pt(title,22,98+i*13,col,1);
+    pt(desc,76,98+i*13,'#aaaacc',1);
+  });
+
+  // How to play
+  dith(18,158,444,14,'#0a0020','#120030');
+  pborder(18,158,444,14,'#440077');
+  ptc('DRAW TILE > SELECT 3+ > PLAY COMBO > DISCARD 1 TO END TURN',LW/2,162,'#776688',1);
+
+  ptc('TARGET: 1000 PTS  FIRST TO WIN!',LW/2,175,'#664477',1);
+
+  pbtn('> START GAME <',LW/2-40,164,80,13,G.hBtn==='start','#5500aa');
+
+  drawPts();
+}
+
+// ── GAME OVER ────────────────────────────────────────────────────
+function drawGameOver(){
+  ctx.fillStyle='#06000e';ctx.fillRect(0,0,LW,LH);
+  STARS.forEach(([sx,sy,sz])=>{ctx.fillStyle='#ffffff';ctx.fillRect(sx,sy,sz,sz);});
+  const won=G.pScore>=G.target;
+  dith(20,12,440,18,'#1a0035','#240050');
+  pborder(20,12,440,18,won?'#ff4477':'#aa44ff');
+  ptc(won?'YOU WIN!':'EROS WINS',LW/2,16,won?'#ff88cc':'#aa44ff',2);
+  ptc(won?'LOVE PREVAILS!':'HEARTBROKEN...',LW/2,36,'#ffd700',1);
+  if(won){eros(LW/2+30,75);plyr(LW/2-30,75);}
+  else{eros(LW/2,75);}
+  dsuit(LW/2-2,92,0,won?'#ff4477':'#440055');
+  ptc('YOUR SCORE  '+G.pScore,LW/2,110,'#ffd700',1);
+  ptc('EROS SCORE  '+G.oScore,LW/2,120,'#aa44ff',1);
+  ptc('TARGET WAS  '+G.target,LW/2,130,'#664488',1);
+  pbtn('> PLAY AGAIN <',LW/2-40,158,80,13,G.hBtn==='restart','#5500aa');
+  drawPts();
+}
+
+// ── INPUT ────────────────────────────────────────────────────────
+C.addEventListener('click',e=>{
+  const r=C.getBoundingClientRect(),s=C._s||1;
+  const mx=(e.clientX-r.left)/s,my=(e.clientY-r.top)/s;
+  const b=btnAt(mx,my);
+  if(G.phase==='menu')    {if(b==='start')  newGame();     return;}
+  if(G.phase==='gameover'){if(b==='restart')G.phase='menu';return;}
+  if(G.phase!=='play')return;
+  if(b==='draw') {actDraw(false);return;}
+  if(b==='ddisc'){actDraw(true); return;}
+  if(b==='play') {actPlay();     return;}
+  if(b==='disc') {actDiscard();  return;}
+  if(b==='clr')  {G.sel=[];      return;}
+  const ti=tileAt(mx,my);
+  if(ti>=0){const si=G.sel.indexOf(ti);si>=0?G.sel.splice(si,1):G.sel.push(ti);}
+});
+C.addEventListener('mousemove',e=>{
+  const r=C.getBoundingClientRect(),s=C._s||1;
+  const mx=(e.clientX-r.left)/s,my=(e.clientY-r.top)/s;
+  G.hTile=tileAt(mx,my);G.hBtn=btnAt(mx,my);
+  C.style.cursor=(G.hBtn||G.hTile>=0)?'pointer':'default';
+});
+
+// ── MAIN LOOP ─────────────────────────────────────────────────────
+function loop(){
+  requestAnimationFrame(loop);
+  tickPts();tickFlt();
+  if(G.msgT>0)G.msgT--;
+  if(G.phase==='menu')    {drawMenu();   return;}
+  if(G.phase==='gameover'){drawGameOver();return;}
+  if(G.phase==='opp')oppTick();
+
+  drawTable();
+  drawScoreBars();
+  drawOpp();
+  drawOppHand();
+  drawPiles();
+  drawPHand();
+  getBtns().forEach(b=>pbtn(b.label,b.x,b.y,b.w,b.h,G.hBtn===b.id,b.col));
+  drawPreview();
+
+  // Player info bar
+  dith(32,222,416,8,'#0a001a','#120025');
+  pborder(32,222,416,8,'#330055');
+  pt('YOU',36,224,'#ffd700',1);
+  pt(G.pScore+'/'+G.target,78,224,'#cc88ff',1);
+  ptc(G.phase==='play'?'YOUR TURN':'EROS THINKING...',LW/2,224,G.phase==='play'?SC[0]:'#aa44ff',1);
+  pt('RND '+G.round,LW-50,224,'#664488',1);
+
+  // Message
+  if(G.msgT>0){
+    ctx.globalAlpha=Math.min(1,G.msgT/25);
+    ptc(G.msg,LW/2,LH/2-12,'#ff88cc',1);
+    ctx.globalAlpha=1;
+  }
+
+  // Hint below player hand
+  pt(G.canDraw&&G.phase==='play'?'CLICK DRAW PILE OR DISC PILE TO DRAW':'SELECT TILES  PLAY COMBO  OR  DISCARD 1',35,LH-9,'#2a0044',1);
+
+  drawFlt();drawPts();
+}
+
+// Ambient sparkle
+setInterval(()=>{if(G.phase==='menu'||G.phase==='gameover')spark(Math.random()*LW|0,Math.random()*LH|0,2,Math.random()>.5?SC[0]:'#aa44ff');},300);
+
+loop();
+</script>
+</body>
+</html>
